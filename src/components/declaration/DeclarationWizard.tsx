@@ -17,6 +17,7 @@ import {
 } from "@/lib/declaration/fields";
 import { ReviewStep } from "./ReviewStep";
 import { validateRights } from "@/lib/declaration/rights";
+import { toSubmission } from "@/lib/declaration/submission";
 import { RightsStep } from "./RightsStep";
 import { bpmError, iswcError, WorkStep } from "./WorkStep";
 
@@ -47,7 +48,9 @@ export function DeclarationWizard() {
   const [hydrated, setHydrated] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestions>({});
   const [dropError, setDropError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<{ reference: string } | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [showRightsErrors, setShowRightsErrors] = useState(false);
 
   useEffect(() => {
@@ -124,9 +127,28 @@ export function DeclarationWizard() {
     }
     if (step === 0 && hasUnconfirmed) updateAuto(confirmAutoValues);
     if (step < STEPS.length - 1) setStep(step + 1);
-    else {
-      setSubmitted(true);
+    else void submit();
+  };
+
+  const submit = async () => {
+    setSending(true);
+    setSendError(null);
+    try {
+      const res = await fetch("/api/declarations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toSubmission(draft)),
+      });
+      const data = (await res.json().catch(() => ({}))) as { reference?: string; error?: string };
+      if (!res.ok || !data.reference) throw new Error(data.error ?? "L'envoi a échoué. Réessayez dans un instant.");
       clearDraft();
+      setSubmitted({ reference: data.reference });
+      window.scrollTo({ top: 0 });
+    } catch (error) {
+      // The draft stays in localStorage: nothing is lost if sending fails.
+      setSendError(error instanceof Error && error.message !== "Failed to fetch" ? error.message : "Connexion impossible. Vérifiez votre réseau puis réessayez.");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -139,14 +161,15 @@ export function DeclarationWizard() {
           </svg>
         </span>
         <h1 className="mt-6 font-display text-2xl font-semibold tracking-tight">Déclaration enregistrée</h1>
-        <p className="mt-2 text-sm text-muted">« {draft.work.title.value} » a bien été déclarée. Vous recevrez une confirmation par e-mail.</p>
+        <p className="mt-2 text-sm text-muted">« {draft.work.title.value} » a bien été transmise. Le récapitulatif PDF a été envoyé par e-mail.</p>
+        <p className="mt-4 rounded-full border border-line bg-surface px-3 py-1 font-mono text-xs text-muted">Réf. {submitted.reference}</p>
         <button
           type="button"
           onClick={() => {
             audio.remove();
             setDraft(createEmptyDraft());
             setShowRightsErrors(false);
-            setSubmitted(false);
+            setSubmitted(null);
           }}
           className="btn-primary mt-8"
         >
@@ -270,6 +293,11 @@ export function DeclarationWizard() {
           />
         )}
         {step === 2 && <ReviewStep draft={draft} onEditStep={setStep} />}
+        {step === 2 && sendError && (
+          <p role="alert" className="mt-4 rounded-xl border border-danger/20 bg-danger-soft px-4 py-3 text-sm text-danger">
+            {sendError}
+          </p>
+        )}
       </div>
 
       <footer className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/90 backdrop-blur-md">
@@ -288,8 +316,9 @@ export function DeclarationWizard() {
                 Retour
               </button>
             )}
-            <button type="button" onClick={next} disabled={!canContinue} className="btn-primary flex-1 sm:min-w-44 sm:flex-none">
-              {primaryLabel}
+            <button type="button" onClick={next} disabled={!canContinue || sending} aria-busy={sending} className="btn-primary flex-1 sm:min-w-44 sm:flex-none">
+              {sending && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden />}
+              {sending ? "Envoi en cours…" : primaryLabel}
               {step < STEPS.length - 1 && (
                 <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
                   <path d="M3 8h10M9 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
