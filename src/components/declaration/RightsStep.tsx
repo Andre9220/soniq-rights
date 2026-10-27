@@ -1,6 +1,6 @@
 "use client";
 
-import { createRightsHolder, displayName, roleTotal, validateRights, type Role, type RightsHolder } from "@/lib/declaration/rights";
+import { createRightsHolder, displayName, roleTotal, totalShare, validateRights, type RightsHolder } from "@/lib/declaration/rights";
 
 interface Props {
   holders: RightsHolder[];
@@ -11,20 +11,25 @@ interface Props {
 }
 
 
-/** Splits 100 % evenly between the holders of a role; the remainder goes to the first ones. */
-export function splitEvenly(holders: RightsHolder[], role: Role): RightsHolder[] {
-  const active = holders.filter((h) => (role === "author" ? h.isAuthor : h.isComposer));
-  if (active.length === 0) return holders;
+/**
+ * Splits 100 % evenly between every checked role (a holder who is both author
+ * and composer counts twice); the rounding remainder goes to the first ones.
+ */
+export function splitEvenly(holders: RightsHolder[]): RightsHolder[] {
+  const slots = holders.flatMap((h) => [
+    ...(h.isAuthor ? [{ id: h.id, key: "authorShare" as const }] : []),
+    ...(h.isComposer ? [{ id: h.id, key: "composerShare" as const }] : []),
+  ]);
+  if (slots.length === 0) return holders;
   const cents = 10000;
-  const base = Math.floor(cents / active.length);
-  let remainder = cents - base * active.length;
-  const shares = new Map<string, string>();
-  for (const h of active) {
+  const base = Math.floor(cents / slots.length);
+  let remainder = cents - base * slots.length;
+  const next = holders.map((h) => ({ ...h }));
+  for (const slot of slots) {
     const value = base + (remainder-- > 0 ? 1 : 0);
-    shares.set(h.id, String(value / 100).replace(".", ","));
+    next.find((h) => h.id === slot.id)![slot.key] = String(value / 100).replace(".", ",");
   }
-  const key = role === "author" ? "authorShare" : "composerShare";
-  return holders.map((h) => (shares.has(h.id) ? { ...h, [key]: shares.get(h.id)! } : h));
+  return next;
 }
 
 function initials(h: RightsHolder) {
@@ -106,7 +111,19 @@ function RoleToggle({
   );
 }
 
-function TotalGauge({ label, total, onSplit, disabled }: { label: string; total: number; onSplit: () => void; disabled: boolean }) {
+function TotalGauge({
+  label,
+  total,
+  detail,
+  onSplit,
+  disabled,
+}: {
+  label: string;
+  total: number;
+  detail?: string;
+  onSplit: () => void;
+  disabled: boolean;
+}) {
   const ok = total === 100;
   return (
     <div className="flex-1 rounded-xl border border-line bg-surface p-4">
@@ -122,9 +139,12 @@ function TotalGauge({ label, total, onSplit, disabled }: { label: string; total:
           style={{ width: `${Math.min(total, 100)}%` }}
         />
       </div>
-      <button type="button" disabled={disabled} onClick={onSplit} className="mt-2 text-xs font-medium text-accent hover:underline disabled:text-muted disabled:no-underline">
-        Répartir équitablement
-      </button>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+        {detail && <span className="text-muted">{detail}</span>}
+        <button type="button" disabled={disabled} onClick={onSplit} className="font-medium text-accent hover:underline disabled:text-muted disabled:no-underline">
+          Répartir équitablement
+        </button>
+      </div>
     </div>
   );
 }
@@ -278,22 +298,17 @@ export function RightsStep({ holders, instrumental, showErrors, onChange, onInst
         + Ajouter un ayant droit
       </button>
 
-      <div className="flex flex-col gap-2 sm:flex-row">
-        {!instrumental && (
-          <TotalGauge
-            label="Paroles · parts auteur"
-            total={roleTotal(holders, "author")}
-            disabled={!hasAuthors}
-            onSplit={() => onChange(splitEvenly(holders, "author"))}
-          />
-        )}
-        <TotalGauge
-          label="Musique · parts compositeur"
-          total={roleTotal(holders, "composer")}
-          disabled={!hasComposers}
-          onSplit={() => onChange(splitEvenly(holders, "composer"))}
-        />
-      </div>
+      <TotalGauge
+        label="Total auteur + compositeur"
+        total={totalShare(holders)}
+        detail={
+          instrumental
+            ? undefined
+            : `dont auteurs ${String(roleTotal(holders, "author")).replace(".", ",")} % · compositeurs ${String(roleTotal(holders, "composer")).replace(".", ",")} %`
+        }
+        disabled={!hasAuthors && !hasComposers}
+        onSplit={() => onChange(splitEvenly(holders))}
+      />
 
       {showErrors && validation.global.length > 0 && (
         <ul role="alert" className="space-y-1 rounded-xl border border-danger/20 bg-danger-soft px-4 py-3 text-xs text-danger">

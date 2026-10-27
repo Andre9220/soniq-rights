@@ -15,8 +15,8 @@ function validSubmission(): Submission {
   draft.work.genre = { value: "Électro / Dance", source: "auto" };
   draft.work.iswc = { value: "T-034.524.680-1", source: "manual" };
   draft.rightsHolders = [
-    { ...createRightsHolder("a"), lastName: "Dupont", firstName: "Camille", pseudonym: "Kami", isAuthor: true, authorShare: "100", isComposer: true, composerShare: "50", phone: "+33 6 12 34 56 78", email: "camille@exemple.fr" },
-    { ...createRightsHolder("b"), lastName: "Martin", firstName: "Léo", isComposer: true, composerShare: "50", phone: "0612345678", email: "leo@exemple.fr" },
+    { ...createRightsHolder("a"), lastName: "Dupont", firstName: "Camille", pseudonym: "Kami", isAuthor: true, authorShare: "50", isComposer: true, composerShare: "25", phone: "+33 6 12 34 56 78", email: "camille@exemple.fr" },
+    { ...createRightsHolder("b"), lastName: "Martin", firstName: "Léo", isComposer: true, composerShare: "25", phone: "0612345678", email: "leo@exemple.fr" },
   ];
   return toSubmission(draft);
 }
@@ -43,10 +43,10 @@ describe("submissionSchema", () => {
 
   it("re-validates shares on the server", () => {
     const s = validSubmission();
-    s.rightsHolders[1].composerShare = "40";
+    s.rightsHolders[1].composerShare = "15";
     const r = submissionSchema.safeParse(s);
     expect(r.success).toBe(false);
-    expect(r.error?.issues[0].message).toMatch(/compositeur totalisent 90 %/);
+    expect(r.error?.issues[0].message).toBe("Le total auteur + compositeur fait 90 % au lieu de 100 %.");
   });
 
   it.each([
@@ -74,7 +74,7 @@ describe("PDF", () => {
 
   it("paginates long lists of rights holders", async () => {
     const s = validSubmission();
-    s.rightsHolders = Array.from({ length: 12 }, (_, i) => ({ ...s.rightsHolders[1], id: `h${i}`, composerShare: i < 4 ? "25" : "0" }));
+    s.rightsHolders = Array.from({ length: 12 }, (_, i) => ({ ...s.rightsHolders[1], id: `h${i}`, isAuthor: false, composerShare: i < 4 ? "25" : "0" }));
     const doc = await PDFDocument.load(await renderDeclarationPdf(s, { reference: "SR-2", submittedAt: new Date() }));
     expect(doc.getPageCount()).toBeGreaterThan(1);
   });

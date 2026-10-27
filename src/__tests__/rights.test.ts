@@ -10,6 +10,7 @@ import {
   normalizeHolder,
   parseShare,
   roleTotal,
+  totalShare,
   validateHolder,
   validateRights,
   type RightsHolder,
@@ -76,33 +77,51 @@ describe("roles and shares", () => {
     expect(roleTotal(holders, "composer")).toBe(50);
   });
 
-  it("accepts a holder who is both author and composer", () => {
-    const result = validateRights([holder({ isAuthor: true, authorShare: "100", isComposer: true, composerShare: "100" })]);
+  it("accepts a sole author-composer at 50 % + 50 %", () => {
+    const result = validateRights([holder({ isAuthor: true, authorShare: "50", isComposer: true, composerShare: "50" })]);
     expect(result.valid).toBe(true);
+    expect(result.totals).toEqual({ author: 50, composer: 50, all: 100 });
   });
 
-  it("requires author and composer totals of exactly 100 %", () => {
-    const result = validateRights([
-      holder({ isAuthor: true, authorShare: "50", isComposer: true, composerShare: "100" }),
-      holder({ isComposer: true, composerShare: "10" }),
+  it("requires author + composer shares to total exactly 100 % together", () => {
+    // 100 % per role used to be valid; the distribution key is now global.
+    const perRole = validateRights([
+      holder({ isAuthor: true, authorShare: "100", isComposer: true, composerShare: "50" }),
+      holder({ isComposer: true, composerShare: "50" }),
     ]);
-    expect(result.valid).toBe(false);
-    expect(result.global.join(" ")).toMatch(/auteur totalisent 50 %/);
-    expect(result.global.join(" ")).toMatch(/compositeur totalisent 110 %/);
+    expect(perRole.valid).toBe(false);
+    expect(perRole.global).toContain("Le total auteur + compositeur fait 200 % au lieu de 100 %.");
+
+    const under = validateRights([holder({ isAuthor: true, authorShare: "30", isComposer: true, composerShare: "30,5" })]);
+    expect(under.global).toContain("Le total auteur + compositeur fait 60,5 % au lieu de 100 %.");
   });
 
-  it("handles thirds without floating point drift", () => {
-    const holders = splitEvenly(
-      [holder({ isComposer: true }), holder({ isComposer: true }), holder({ isComposer: true })],
-      "composer",
-    );
-    expect(holders.map((h) => h.composerShare)).toEqual(["33,34", "33,33", "33,33"]);
-    expect(roleTotal(holders, "composer")).toBe(100);
+  it("accepts an uneven key across several holders", () => {
+    const result = validateRights([
+      holder({ isAuthor: true, authorShare: "40" }),
+      holder({ isComposer: true, composerShare: "35" }),
+      holder({ isAuthor: true, authorShare: "10", isComposer: true, composerShare: "15" }),
+    ]);
+    expect(result.valid).toBe(true);
+    expect(totalShare([holder({ isAuthor: true, authorShare: "33,33" }), holder({ isComposer: true, composerShare: "66,67" })])).toBe(100);
+  });
+
+  it("splits evenly across every checked role, without floating point drift", () => {
+    const holders = splitEvenly([
+      holder({ isAuthor: true, isComposer: true }), // counts twice
+      holder({ isComposer: true }),
+    ]);
+    expect(holders.map((h) => [h.authorShare, h.composerShare])).toEqual([
+      ["33,34", "33,33"],
+      ["", "33,33"],
+    ]);
+    expect(totalShare(holders)).toBe(100);
+    expect(splitEvenly([holder({})])[0].composerShare).toBe("");
   });
 
   it("requires an author unless the work is instrumental", () => {
     const holders = [holder({ isComposer: true, composerShare: "100" })];
-    expect(validateRights(holders).valid).toBe(false);
+    expect(validateRights(holders).global).toContain("Au moins un auteur est requis (ou cochez « œuvre instrumentale »).");
     expect(validateRights(holders, { instrumental: true }).valid).toBe(true);
   });
 

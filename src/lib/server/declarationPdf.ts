@@ -153,8 +153,10 @@ export async function renderDeclarationPdf(submission: Submission, meta: { refer
       const v = Number((role === "author" ? h.authorShare : h.composerShare).replace(",", "."));
       return on && Number.isFinite(v) ? s + v : s;
     }, 0);
-  if (!submission.instrumental) w.row("Paroles (auteurs)", `${Math.round(sum("author") * 100) / 100} %`);
-  w.row("Musique (compositeurs)", `${Math.round(sum("composer") * 100) / 100} %`);
+  const pct = (n: number) => `${String(Math.round(n * 100) / 100).replace(".", ",")} %`;
+  if (!submission.instrumental) w.row("Auteurs", pct(sum("author")));
+  w.row("Compositeurs", pct(sum("composer")));
+  w.row("Total", pct(sum("author") + sum("composer")));
 
   // Footer on every page
   const pages = doc.getPages();

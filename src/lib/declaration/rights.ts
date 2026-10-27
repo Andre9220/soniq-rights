@@ -57,6 +57,11 @@ export function roleTotal(holders: RightsHolder[], role: Role): number {
   return Math.round(total * 100) / 100;
 }
 
+/** Author shares + composer shares: the whole distribution key, which must reach 100 %. */
+export function totalShare(holders: RightsHolder[]): number {
+  return Math.round((roleTotal(holders, "author") + roleTotal(holders, "composer")) * 100) / 100;
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export function isValidEmail(email: string): boolean {
@@ -85,22 +90,20 @@ export function validateHolder(h: RightsHolder): HolderErrors {
 }
 
 /**
- * Shares are split per role, as in a Sacem declaration: authors share the
- * lyrics (100 %), composers share the music (100 %). A role nobody holds is
- * an error, since every work has both lyrics/music rights to allocate unless
- * it is instrumental — in which case only composers are required.
+ * One distribution key for the whole work: every author share plus every
+ * composer share must total exactly 100 %. A work needs at least one composer,
+ * and at least one author unless it is instrumental.
  */
 export function validateRights(holders: RightsHolder[], options: { instrumental?: boolean } = {}) {
   const perHolder = Object.fromEntries(holders.map((h) => [h.id, validateHolder(h)]));
   const hasAuthor = holders.some((h) => h.isAuthor);
   const hasComposer = holders.some((h) => h.isComposer);
-  const totals = { author: roleTotal(holders, "author"), composer: roleTotal(holders, "composer") };
+  const totals = { author: roleTotal(holders, "author"), composer: roleTotal(holders, "composer"), all: totalShare(holders) };
   const global: string[] = [];
 
   if (!hasComposer) global.push("Au moins un compositeur est requis.");
   if (!options.instrumental && !hasAuthor) global.push("Au moins un auteur est requis (ou cochez « œuvre instrumentale »).");
-  if (hasAuthor && totals.author !== 100) global.push(`Les parts auteur totalisent ${totals.author} % au lieu de 100 %.`);
-  if (hasComposer && totals.composer !== 100) global.push(`Les parts compositeur totalisent ${totals.composer} % au lieu de 100 %.`);
+  if (totals.all !== 100) global.push(`Le total auteur + compositeur fait ${String(totals.all).replace(".", ",")} % au lieu de 100 %.`);
 
   const valid = global.length === 0 && Object.values(perHolder).every((e) => Object.keys(e).length === 0);
   return { valid, perHolder, totals, global };
