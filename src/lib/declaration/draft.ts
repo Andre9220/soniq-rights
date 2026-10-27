@@ -1,20 +1,19 @@
 import type { AutoFields, TrackedField } from "./fields";
+import { createRightsHolder, normalizeHolder, type RightsHolder } from "./rights";
+
+export type { RightsHolder } from "./rights";
 
 export const DRAFT_STORAGE_KEY = "soniq-rights:declaration-draft:v1";
-
-export interface RightsHolder {
-  id: string;
-  name: string;
-  role: "auteur" | "compositeur" | "arrangeur" | "editeur";
-  share: string;
-}
 
 export interface DeclarationDraft {
   step: number;
   work: AutoFields & {
     genre: TrackedField;
     isrc: TrackedField;
+    iswc: TrackedField;
   };
+  /** Instrumental works have no lyrics, hence no author share. */
+  instrumental: boolean;
   rightsHolders: RightsHolder[];
   updatedAt: string | null;
 }
@@ -24,8 +23,9 @@ const field = (): TrackedField => ({ value: "", source: "empty" });
 export function createEmptyDraft(): DeclarationDraft {
   return {
     step: 0,
-    work: { title: field(), duration: field(), bpm: field(), genre: field(), isrc: field() },
-    rightsHolders: [{ id: "rh-1", name: "", role: "auteur", share: "" }],
+    work: { title: field(), duration: field(), bpm: field(), genre: field(), isrc: field(), iswc: field() },
+    instrumental: false,
+    rightsHolders: [createRightsHolder("rh-1")],
     updatedAt: null,
   };
 }
@@ -55,7 +55,11 @@ export function deserializeDraft(raw: string | null): DeclarationDraft | null {
     return {
       step: typeof parsed.step === "number" ? parsed.step : 0,
       work,
-      rightsHolders: Array.isArray(parsed.rightsHolders) && parsed.rightsHolders.length ? parsed.rightsHolders : base.rightsHolders,
+      instrumental: parsed.instrumental === true,
+      rightsHolders:
+        Array.isArray(parsed.rightsHolders) && parsed.rightsHolders.length
+          ? parsed.rightsHolders.map(normalizeHolder)
+          : base.rightsHolders,
       updatedAt: parsed.updatedAt ?? null,
     };
   } catch {

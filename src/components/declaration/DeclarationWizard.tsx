@@ -16,8 +16,9 @@ import {
   type Suggestions,
 } from "@/lib/declaration/fields";
 import { ReviewStep } from "./ReviewStep";
-import { RightsStep, totalShare } from "./RightsStep";
-import { bpmError, WorkStep } from "./WorkStep";
+import { validateRights } from "@/lib/declaration/rights";
+import { RightsStep } from "./RightsStep";
+import { bpmError, iswcError, WorkStep } from "./WorkStep";
 
 const STEPS = [
   { title: "L'œuvre", subtitle: "Importez votre morceau : durée, tempo et titre sont proposés automatiquement." },
@@ -35,6 +36,7 @@ export function DeclarationWizard() {
   const [suggestions, setSuggestions] = useState<Suggestions>({});
   const [dropError, setDropError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [showRightsErrors, setShowRightsErrors] = useState(false);
 
   useEffect(() => {
     const saved = loadDraft();
@@ -92,12 +94,22 @@ export function DeclarationWizard() {
   const hasUnconfirmed = (["title", "duration", "bpm"] as const).some((k) => draft.work[k].source === "auto");
   const canContinue =
     step === 0
-      ? draft.work.title.value.trim() !== "" && parseDuration(draft.work.duration.value) !== null && !bpmError(draft.work.bpm.value)
-      : step === 1
-        ? Math.abs(totalShare(draft.rightsHolders) - 100) < 0.01 && draft.rightsHolders.every((h) => h.name.trim())
-        : true;
+      ? draft.work.title.value.trim() !== "" &&
+        parseDuration(draft.work.duration.value) !== null &&
+        !bpmError(draft.work.bpm.value) &&
+        !iswcError(draft.work.iswc.value)
+      : true;
+  const rightsValid = validateRights(draft.rightsHolders, { instrumental: draft.instrumental }).valid;
 
   const next = () => {
+    if (step === 1 && !rightsValid) {
+      // Errors stay hidden until the user tries to move on, then point at the first one.
+      setShowRightsErrors(true);
+      requestAnimationFrame(() =>
+        document.querySelector(".text-danger")?.closest("section, ul")?.scrollIntoView({ behavior: "smooth", block: "center" }),
+      );
+      return;
+    }
     if (step === 0 && hasUnconfirmed) updateAuto(confirmAutoValues);
     if (step < STEPS.length - 1) setStep(step + 1);
     else {
@@ -116,6 +128,7 @@ export function DeclarationWizard() {
           onClick={() => {
             audio.remove();
             setDraft(createEmptyDraft());
+            setShowRightsErrors(false);
             setSubmitted(false);
           }}
           className="mt-6 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white"
@@ -170,7 +183,15 @@ export function DeclarationWizard() {
           onPickBpm={(bpm) => onEdit("bpm", String(bpm).replace(".", ","))}
         />
       )}
-      {step === 1 && <RightsStep holders={draft.rightsHolders} onChange={(rightsHolders) => setDraft((d) => ({ ...d, rightsHolders }))} />}
+      {step === 1 && (
+        <RightsStep
+          holders={draft.rightsHolders}
+          instrumental={draft.instrumental}
+          showErrors={showRightsErrors}
+          onChange={(rightsHolders) => setDraft((d) => ({ ...d, rightsHolders }))}
+          onInstrumentalChange={(instrumental) => setDraft((d) => ({ ...d, instrumental }))}
+        />
+      )}
       {step === 2 && <ReviewStep draft={draft} />}
 
       <footer className="fixed inset-x-0 bottom-0 border-t border-line bg-surface/90 backdrop-blur">
