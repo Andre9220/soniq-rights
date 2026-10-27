@@ -5,8 +5,14 @@ export type { RightsHolder } from "./rights";
 
 export const DRAFT_STORAGE_KEY = "soniq-rights:declaration-draft:v1";
 
+/** "inedite": never published; "editee": published (commercially released or edited). */
+export type PublicationStatus = "" | "inedite" | "editee";
+
 export interface DeclarationDraft {
   step: number;
+  publication: PublicationStatus;
+  /** ISO 3166-1 alpha-2 code of the work's country of origin. */
+  originCountry: string;
   work: AutoFields & {
     genre: TrackedField;
     isrc: TrackedField;
@@ -23,6 +29,8 @@ const field = (): TrackedField => ({ value: "", source: "empty" });
 export function createEmptyDraft(): DeclarationDraft {
   return {
     step: 0,
+    publication: "",
+    originCountry: "",
     work: { title: field(), duration: field(), bpm: field(), genre: field(), isrc: field(), iswc: field() },
     instrumental: false,
     rightsHolders: [createRightsHolder("rh-1")],
@@ -54,6 +62,8 @@ export function deserializeDraft(raw: string | null): DeclarationDraft | null {
     }
     return {
       step: typeof parsed.step === "number" ? parsed.step : 0,
+      publication: parsed.publication === "inedite" || parsed.publication === "editee" ? parsed.publication : "",
+      originCountry: typeof parsed.originCountry === "string" ? parsed.originCountry : "",
       work,
       instrumental: parsed.instrumental === true,
       rightsHolders:

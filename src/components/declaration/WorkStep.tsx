@@ -3,16 +3,21 @@
 import { useRef } from "react";
 import type { AudioImportState } from "@/hooks/useAudioImport";
 import { parseDuration } from "@/lib/audio/duration";
-import type { DeclarationDraft } from "@/lib/declaration/draft";
+import type { DeclarationDraft, PublicationStatus } from "@/lib/declaration/draft";
 import { isValidIswc } from "@/lib/declaration/iswc";
 import { parseBpm, type AutoFieldKey, type Suggestions } from "@/lib/declaration/fields";
 import { AudioCard } from "./AudioCard";
 import { AudioDropzone, type AudioDropzoneHandle } from "./AudioDropzone";
 import { TrackedInput } from "./TrackedInput";
+import { WorkStatusCard } from "./WorkStatusCard";
 
 type WorkKey = keyof DeclarationDraft["work"];
 
 interface Props {
+  publication: PublicationStatus;
+  originCountry: string;
+  onPublicationChange: (value: PublicationStatus) => void;
+  onCountryChange: (code: string) => void;
   work: DeclarationDraft["work"];
   audio: AudioImportState;
   dropError: string | null;
@@ -60,6 +65,13 @@ export function WorkStep(props: Props) {
 
   return (
     <div className="space-y-6">
+      <WorkStatusCard
+        publication={props.publication}
+        originCountry={props.originCountry}
+        onPublicationChange={props.onPublicationChange}
+        onCountryChange={props.onCountryChange}
+      />
+
       <section className="space-y-3">
         {hasFile ? (
           <>

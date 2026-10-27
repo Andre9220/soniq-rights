@@ -109,7 +109,9 @@ export function DeclarationWizard() {
   const hasUnconfirmed = (["title", "duration", "bpm", "genre"] as const).some((k) => draft.work[k].source === "auto");
   const canContinue =
     step === 0
-      ? draft.work.title.value.trim() !== "" &&
+      ? draft.publication !== "" &&
+        draft.originCountry !== "" &&
+        draft.work.title.value.trim() !== "" &&
         parseDuration(draft.work.duration.value) !== null &&
         !bpmError(draft.work.bpm.value) &&
         !iswcError(draft.work.iswc.value)
@@ -264,6 +266,10 @@ export function DeclarationWizard() {
 
         {step === 0 && (
           <WorkStep
+            publication={draft.publication}
+            originCountry={draft.originCountry}
+            onPublicationChange={(publication) => setDraft((d) => ({ ...d, publication }))}
+            onCountryChange={(originCountry) => setDraft((d) => ({ ...d, originCountry }))}
             work={draft.work}
             audio={audio.state}
             dropError={dropError}

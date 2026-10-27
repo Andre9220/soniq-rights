@@ -9,13 +9,15 @@ import { handleDeclarationSubmission, makeReference, pdfFileName } from "@/lib/s
 
 function validSubmission(): Submission {
   const draft = createEmptyDraft();
+  draft.publication = "inedite";
+  draft.originCountry = "FR";
   draft.work.title = { value: "Lumière du Nord", source: "confirmed" };
   draft.work.duration = { value: "3:42", source: "confirmed" };
   draft.work.bpm = { value: "120", source: "confirmed" };
   draft.work.genre = { value: "Électro / Dance", source: "auto" };
   draft.work.iswc = { value: "T-034.524.680-1", source: "manual" };
   draft.rightsHolders = [
-    { ...createRightsHolder("a"), lastName: "Dupont", firstName: "Camille", pseudonym: "Kami", isAuthor: true, authorShare: "50", isComposer: true, composerShare: "25", phone: "+33 6 12 34 56 78", email: "camille@exemple.fr" },
+    { ...createRightsHolder("a"), lastName: "Dupont", firstName: "Camille", pseudonym: "Kami", ipi: "123456789", isAuthor: true, authorShare: "50", isComposer: true, composerShare: "25", phone: "+33 6 12 34 56 78", email: "camille@exemple.fr" },
     { ...createRightsHolder("b"), lastName: "Martin", firstName: "Léo", isComposer: true, composerShare: "25", phone: "0612345678", email: "leo@exemple.fr" },
   ];
   return toSubmission(draft);
@@ -54,6 +56,9 @@ describe("submissionSchema", () => {
     ["bad duration", (s: Submission) => (s.work.duration.value = "3:99")],
     ["bad ISWC", (s: Submission) => (s.work.iswc.value = "T-034.524.680-9")],
     ["bad email", (s: Submission) => (s.rightsHolders[0].email = "nope")],
+    ["bad IPI", (s: Submission) => (s.rightsHolders[0].ipi = "12AB")],
+    ["unknown country", (s: Submission) => (s.originCountry = "XX")],
+    ["missing publication status", (s: Submission) => ((s as { publication: string }).publication = "")],
   ])("rejects %s", (_, mutate) => {
     const s = validSubmission();
     mutate(s);
@@ -116,6 +121,8 @@ describe("POST /api/declarations", () => {
     expect(message.attachments[0].filename).toBe("declaration-lumiere-du-nord-SR-20261027-ABC123.pdf");
     expect(new TextDecoder().decode(message.attachments[0].content.slice(0, 5))).toBe("%PDF-");
     expect(message.html).toContain("Camille Dupont (Kami)");
+    expect(message.html).toContain("IPI 123456789");
+    expect(message.text).toContain("Statut : inédite · Pays d'origine : FR");
   });
 
   it("escapes user content in the e-mail HTML", async () => {

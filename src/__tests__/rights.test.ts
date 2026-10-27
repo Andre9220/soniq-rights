@@ -160,3 +160,50 @@ describe("draft migration", () => {
     expect(restored.rightsHolders[0]).toMatchObject({ pseudonym: "Kami", phone: "06 12 34 56 78", email: "camille@exemple.fr" });
   });
 });
+
+import { countryName, countryOptions, isCountryCode } from "@/lib/declaration/countries";
+import { isValidIpi, normalizeIpi } from "@/lib/declaration/rights";
+
+describe("IPI", () => {
+  it.each([
+    ["00123456789", "00123456789"],
+    ["123456789", "00123456789"],
+    ["123 456 789 01", "12345678901"],
+    ["1234-5678-90", "01234567890"],
+  ])("normalizes %s → %s", (input, expected) => expect(normalizeIpi(input)).toBe(expected));
+
+  it.each(["", "12345678", "123456789012", "12345678A"])("rejects %j", (v) => expect(isValidIpi(v)).toBe(false));
+
+  it("is optional on a holder but validated when filled", () => {
+    expect(validateHolder(holder({ isComposer: true, composerShare: "100" })).ipi).toBeUndefined();
+    expect(validateHolder(holder({ isComposer: true, composerShare: "100", ipi: "12" })).ipi).toBe("IPI : 9 à 11 chiffres");
+    expect(validateHolder(holder({ isComposer: true, composerShare: "100", ipi: "123456789" })).ipi).toBeUndefined();
+  });
+
+  it("is migrated as empty from older drafts", () => {
+    expect(normalizeHolder({ id: "x", lastName: "A" }).ipi).toBe("");
+  });
+});
+
+describe("countries", () => {
+  it("lists every ISO country with French names, frequent ones first", () => {
+    const options = countryOptions();
+    expect(options).toHaveLength(249);
+    expect(options.slice(0, 3).map((o) => o.name)).toEqual(["France", "Belgique", "Suisse"]);
+    expect(countryName("DE")).toBe("Allemagne");
+    expect(isCountryCode("FR")).toBe(true);
+    expect(isCountryCode("XX")).toBe(false);
+  });
+});
+
+describe("publication status and origin country in drafts", () => {
+  it("round-trips and drops invalid values", () => {
+    const draft = createEmptyDraft();
+    draft.publication = "editee";
+    draft.originCountry = "BE";
+    expect(deserializeDraft(serializeDraft(draft))).toMatchObject({ publication: "editee", originCountry: "BE" });
+    const tampered = JSON.parse(serializeDraft(draft));
+    tampered.publication = "autre";
+    expect(deserializeDraft(JSON.stringify(tampered))?.publication).toBe("");
+  });
+});

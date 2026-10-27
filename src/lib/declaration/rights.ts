@@ -4,6 +4,8 @@ export interface RightsHolder {
   firstName: string;
   /** Optional stage name. */
   pseudonym: string;
+  /** Optional IPI name number (Interested Party Information), 9 to 11 digits. */
+  ipi: string;
   isAuthor: boolean;
   /** Share of the lyrics (auteur), in percent. */
   authorShare: string;
@@ -23,6 +25,7 @@ export function createRightsHolder(id: string = `rh-${crypto.randomUUID()}`): Ri
     lastName: "",
     firstName: "",
     pseudonym: "",
+    ipi: "",
     isAuthor: false,
     authorShare: "",
     isComposer: false,
@@ -62,6 +65,16 @@ export function totalShare(holders: RightsHolder[]): number {
   return Math.round((roleTotal(holders, "author") + roleTotal(holders, "composer")) * 100) / 100;
 }
 
+/** IPI name numbers are 11 digits; shorter forms (leading zeros dropped) are common. */
+export function normalizeIpi(input: string): string | null {
+  const digits = input.replace(/[\s.\-]/g, "");
+  return /^\d{9,11}$/.test(digits) ? digits.padStart(11, "0") : null;
+}
+
+export function isValidIpi(input: string): boolean {
+  return normalizeIpi(input) !== null;
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export function isValidEmail(email: string): boolean {
@@ -76,7 +89,7 @@ export function isValidPhone(phone: string): boolean {
   return digits.length >= 8 && digits.length <= 15;
 }
 
-export type HolderErrors = Partial<Record<"identity" | "roles" | "authorShare" | "composerShare" | "phone" | "email", string>>;
+export type HolderErrors = Partial<Record<"identity" | "roles" | "authorShare" | "composerShare" | "phone" | "email" | "ipi", string>>;
 
 export function validateHolder(h: RightsHolder): HolderErrors {
   const errors: HolderErrors = {};
@@ -86,6 +99,7 @@ export function validateHolder(h: RightsHolder): HolderErrors {
   if (h.isComposer && parseShare(h.composerShare) === null) errors.composerShare = "Part compositeur entre 0 et 100 %";
   if (!isValidPhone(h.phone)) errors.phone = "Numéro de téléphone invalide";
   if (!isValidEmail(h.email)) errors.email = "Adresse e-mail invalide";
+  if (h.ipi.trim() && !isValidIpi(h.ipi)) errors.ipi = "IPI : 9 à 11 chiffres";
   return errors;
 }
 
@@ -121,6 +135,7 @@ export function normalizeHolder(raw: unknown): RightsHolder {
     lastName: str(r.lastName),
     firstName: str(r.firstName),
     pseudonym: str(r.pseudonym),
+    ipi: str(r.ipi),
     isAuthor: r.isAuthor === true,
     authorShare: str(r.authorShare),
     isComposer: r.isComposer === true,

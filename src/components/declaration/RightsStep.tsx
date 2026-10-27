@@ -261,7 +261,17 @@ export function RightsStep({ holders, instrumental, showErrors, onChange, onInst
               {errors.roles && <p className="text-xs text-danger">{errors.roles}</p>}
             </fieldset>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="N° IPI" optional error={errors.ipi}>
+                <input
+                  className="field-input font-mono tabular-nums"
+                  aria-invalid={errors.ipi ? true : undefined}
+                  value={h.ipi}
+                  onChange={(e) => update(h.id, { ipi: e.target.value })}
+                  inputMode="numeric"
+                  placeholder="00123456789"
+                />
+              </Field>
               <Field label="Téléphone" error={errors.phone}>
                 <input
                   type="tel"

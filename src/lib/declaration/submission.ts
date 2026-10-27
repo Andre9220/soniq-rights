@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { parseDuration } from "@/lib/audio/duration";
 import type { DeclarationDraft } from "./draft";
+import { isCountryCode } from "./countries";
 import { isValidIswc } from "./iswc";
 import { parseBpm } from "./fields";
 import { validateRights } from "./rights";
@@ -12,6 +13,8 @@ const tracked = (max: number) => z.object({ value: text(max), source });
 /** What the browser sends when the declaration is submitted. */
 export const submissionSchema = z
   .object({
+    publication: z.enum(["inedite", "editee"], { message: "Indiquez si l'œuvre est inédite ou éditée" }),
+    originCountry: z.string().refine(isCountryCode, "Pays d'origine invalide"),
     work: z.object({
       title: tracked(200),
       duration: tracked(10),
@@ -28,6 +31,7 @@ export const submissionSchema = z
           lastName: text(100),
           firstName: text(100),
           pseudonym: text(100),
+          ipi: text(20),
           isAuthor: z.boolean(),
           authorShare: text(8),
           isComposer: z.boolean(),
@@ -54,5 +58,11 @@ export const submissionSchema = z
 export type Submission = z.infer<typeof submissionSchema>;
 
 export function toSubmission(draft: DeclarationDraft): Submission {
-  return { work: draft.work, instrumental: draft.instrumental, rightsHolders: draft.rightsHolders };
+  return {
+    publication: draft.publication as Submission["publication"],
+    originCountry: draft.originCountry,
+    work: draft.work,
+    instrumental: draft.instrumental,
+    rightsHolders: draft.rightsHolders,
+  };
 }

@@ -1,6 +1,7 @@
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
+import { countryName } from "@/lib/declaration/countries";
 import { formatIswc } from "@/lib/declaration/iswc";
-import { displayName } from "@/lib/declaration/rights";
+import { displayName, normalizeIpi } from "@/lib/declaration/rights";
 import type { Submission } from "@/lib/declaration/submission";
 
 const INK = rgb(0.039, 0.078, 0.157); // #0A1428
@@ -119,6 +120,8 @@ export async function renderDeclarationPdf(submission: Submission, meta: { refer
 
   const { work } = submission;
   w.heading("L'œuvre");
+  w.row("Statut", submission.publication === "inedite" ? "Inédite" : "Éditée");
+  w.row("Pays d'origine", countryName(submission.originCountry));
   w.row("Titre", work.title.value, SOURCE_NOTE[work.title.source]);
   w.row("Durée", work.duration.value, SOURCE_NOTE[work.duration.source]);
   w.row("BPM", work.bpm.value, work.bpm.value ? `${SOURCE_NOTE[work.bpm.source] ?? ""}${work.bpm.source === "manual" ? "" : " · estimation"}` : undefined);
@@ -137,6 +140,7 @@ export async function renderDeclarationPdf(submission: Submission, meta: { refer
     w.y -= 16;
     w.row("Nom", `${h.lastName} ${h.firstName}`.trim());
     if (h.pseudonym) w.row("Pseudonyme", h.pseudonym);
+    if (h.ipi) w.row("N° IPI", normalizeIpi(h.ipi) ?? h.ipi);
     w.row("Téléphone", h.phone);
     w.row("E-mail", h.email);
     w.y -= 4;

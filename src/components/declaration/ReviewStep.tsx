@@ -1,4 +1,5 @@
 import type { DeclarationDraft } from "@/lib/declaration/draft";
+import { countryName } from "@/lib/declaration/countries";
 import { formatIswc } from "@/lib/declaration/iswc";
 import { displayName } from "@/lib/declaration/rights";
 import { SourceBadge } from "./SourceBadge";
@@ -30,6 +31,16 @@ export function ReviewStep({ draft, onEditStep }: { draft: DeclarationDraft; onE
   return (
     <div className="space-y-6">
       <Section title="L'œuvre" onEdit={() => onEditStep(0)}>
+        <dl className="grid border-b border-line sm:grid-cols-2">
+          <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3 text-sm sm:border-b-0 sm:border-r sm:px-6">
+            <dt className="text-muted">Statut</dt>
+            <dd className="font-medium">{draft.publication === "inedite" ? "Inédite" : draft.publication === "editee" ? "Éditée" : "—"}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3 px-5 py-3 text-sm sm:px-6">
+            <dt className="text-muted">Pays d&apos;origine</dt>
+            <dd className="font-medium">{draft.originCountry ? countryName(draft.originCountry) : "—"}</dd>
+          </div>
+        </dl>
         <dl className="grid sm:grid-cols-2">
           {(Object.keys(LABELS) as Array<keyof DeclarationDraft["work"]>).map((key) => {
             const f = draft.work[key];
@@ -58,6 +69,7 @@ export function ReviewStep({ draft, onEditStep }: { draft: DeclarationDraft; onE
                 <p className="font-medium">{displayName(h) || <span className="text-muted">Sans nom</span>}</p>
                 <p className="mt-0.5 truncate text-xs text-muted">
                   {h.email} · {h.phone}
+                  {h.ipi && <span className="font-mono"> · IPI {h.ipi}</span>}
                 </p>
               </div>
               <div className="flex shrink-0 gap-2 text-xs">

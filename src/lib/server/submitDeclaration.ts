@@ -34,11 +34,12 @@ export function pdfFileName(title: string, reference: string): string {
 function emailBody(s: Submission, reference: string) {
   const holders = s.rightsHolders.map((h) => {
     const shares = [h.isAuthor && `auteur ${h.authorShare} %`, h.isComposer && `compositeur ${h.composerShare} %`].filter(Boolean).join(", ");
-    return { name: displayName(h), shares, contact: `${h.email} · ${h.phone}` };
+    return { name: displayName(h), shares, contact: `${h.email} · ${h.phone}${h.ipi ? ` · IPI ${h.ipi}` : ""}` };
   });
   const text = [
     `Nouvelle déclaration d'œuvre — ${s.work.title.value}`,
     `Référence : ${reference}`,
+    `Statut : ${s.publication === "inedite" ? "inédite" : "éditée"} · Pays d'origine : ${s.originCountry}`,
     `Durée : ${s.work.duration.value}${s.work.bpm.value ? ` · BPM : ${s.work.bpm.value}` : ""}${s.work.genre.value ? ` · Genre : ${s.work.genre.value}` : ""}`,
     "",
     "Ayants droit :",
