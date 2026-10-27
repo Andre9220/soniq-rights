@@ -1,3 +1,5 @@
+import { publisherTotal, validatePublisher, type Publisher } from "./publishers";
+
 export interface RightsHolder {
   id: string;
   lastName: string;
@@ -104,23 +106,42 @@ export function validateHolder(h: RightsHolder): HolderErrors {
 }
 
 /**
- * One distribution key for the whole work: every author share plus every
- * composer share must total exactly 100 %. A work needs at least one composer,
- * and at least one author unless it is instrumental.
+ * One distribution key for the whole work, as on a Sacem declaration: author,
+ * composer and — for an "éditée" work — publisher shares must total exactly
+ * 100 %. A work needs at least one composer, at least one author unless it is
+ * instrumental, and at least one publisher when it is published.
  */
-export function validateRights(holders: RightsHolder[], options: { instrumental?: boolean } = {}) {
+export function validateRights(
+  holders: RightsHolder[],
+  options: { instrumental?: boolean; publishers?: Publisher[] } = {},
+) {
+  const publishers = options.publishers;
   const perHolder = Object.fromEntries(holders.map((h) => [h.id, validateHolder(h)]));
+  const perPublisher = Object.fromEntries((publishers ?? []).map((p) => [p.id, validatePublisher(p)]));
   const hasAuthor = holders.some((h) => h.isAuthor);
   const hasComposer = holders.some((h) => h.isComposer);
-  const totals = { author: roleTotal(holders, "author"), composer: roleTotal(holders, "composer"), all: totalShare(holders) };
+  const publisher = publisherTotal(publishers ?? []);
+  const totals = {
+    author: roleTotal(holders, "author"),
+    composer: roleTotal(holders, "composer"),
+    publisher,
+    all: Math.round((totalShare(holders) + publisher) * 100) / 100,
+  };
   const global: string[] = [];
 
   if (!hasComposer) global.push("Au moins un compositeur est requis.");
   if (!options.instrumental && !hasAuthor) global.push("Au moins un auteur est requis (ou cochez « œuvre instrumentale »).");
-  if (totals.all !== 100) global.push(`Le total auteur + compositeur fait ${String(totals.all).replace(".", ",")} % au lieu de 100 %.`);
+  if (publishers && publishers.length === 0) global.push("Une œuvre éditée doit avoir au moins un éditeur.");
+  if (totals.all !== 100) {
+    const label = publishers ? "auteur + compositeur + éditeur" : "auteur + compositeur";
+    global.push(`Le total ${label} fait ${String(totals.all).replace(".", ",")} % au lieu de 100 %.`);
+  }
 
-  const valid = global.length === 0 && Object.values(perHolder).every((e) => Object.keys(e).length === 0);
-  return { valid, perHolder, totals, global };
+  const valid =
+    global.length === 0 &&
+    Object.values(perHolder).every((e) => Object.keys(e).length === 0) &&
+    Object.values(perPublisher).every((e) => Object.keys(e).length === 0);
+  return { valid, perHolder, perPublisher, totals, global };
 }
 
 /** Migrates holders saved by earlier versions of the draft (name / role / share). */

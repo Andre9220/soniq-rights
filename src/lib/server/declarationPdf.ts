@@ -1,6 +1,7 @@
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
 import { countryName } from "@/lib/declaration/countries";
 import { formatIswc } from "@/lib/declaration/iswc";
+import { publisherRoleLabel } from "@/lib/declaration/publishers";
 import { displayName, normalizeIpi } from "@/lib/declaration/rights";
 import type { Submission } from "@/lib/declaration/submission";
 
@@ -85,7 +86,10 @@ class Writer {
   }
 }
 
-export async function renderDeclarationPdf(submission: Submission, meta: { reference: string; submittedAt: Date }): Promise<Uint8Array> {
+export async function renderDeclarationPdf(
+  submission: Submission,
+  meta: { reference: string; submittedAt: Date; contractName?: string },
+): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(toWinAnsi(`Déclaration — ${submission.work.title.value}`));
   doc.setAuthor("SONIQ RIGHTS");
@@ -150,6 +154,30 @@ export async function renderDeclarationPdf(submission: Submission, meta: { refer
     }
   });
 
+  if (submission.publication === "editee") {
+    w.heading(`Éditeurs (${submission.publishers.length})`);
+    w.row("Contrat d'édition", meta.contractName ? `Joint : ${meta.contractName}` : "Non joint");
+    w.y -= 6;
+    submission.publishers.forEach((p, i) => {
+      w.ensure(140);
+      w.text(`${i + 1}. ${p.name}`, { size: 11.5, bold: true });
+      const shareLabel = `Éditeur ${p.share} %`;
+      w.text(shareLabel, { x: A4.width - MARGIN - bold.widthOfTextAtSize(toWinAnsi(shareLabel), 10), size: 10, bold: true, color: BRAND });
+      w.y -= 16;
+      w.row("Nom", p.contactName);
+      w.row("Rôle", publisherRoleLabel(p.role));
+      w.row("Catalogue", p.catalogue);
+      if (p.ipi) w.row("N° IPI", normalizeIpi(p.ipi) ?? p.ipi);
+      w.row("Portable", p.phone);
+      w.row("E-mail", p.email);
+      w.y -= 4;
+      if (i < submission.publishers.length - 1) {
+        w.rule();
+        w.y -= 16;
+      }
+    });
+  }
+
   w.heading("Répartition");
   const sum = (role: "author" | "composer") =>
     submission.rightsHolders.reduce((s, h) => {
@@ -160,7 +188,12 @@ export async function renderDeclarationPdf(submission: Submission, meta: { refer
   const pct = (n: number) => `${String(Math.round(n * 100) / 100).replace(".", ",")} %`;
   if (!submission.instrumental) w.row("Auteurs", pct(sum("author")));
   w.row("Compositeurs", pct(sum("composer")));
-  w.row("Total", pct(sum("author") + sum("composer")));
+  const publisherSum = submission.publishers.reduce((s, p) => {
+    const v = Number(p.share.replace(",", "."));
+    return Number.isFinite(v) ? s + v : s;
+  }, 0);
+  if (submission.publication === "editee") w.row("Éditeurs", pct(publisherSum));
+  w.row("Total", pct(sum("author") + sum("composer") + publisherSum));
 
   // Footer on every page
   const pages = doc.getPages();

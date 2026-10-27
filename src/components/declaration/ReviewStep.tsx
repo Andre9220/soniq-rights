@@ -1,6 +1,7 @@
 import type { DeclarationDraft } from "@/lib/declaration/draft";
 import { countryName } from "@/lib/declaration/countries";
 import { formatIswc } from "@/lib/declaration/iswc";
+import { publisherRoleLabel } from "@/lib/declaration/publishers";
 import { displayName } from "@/lib/declaration/rights";
 import { SourceBadge } from "./SourceBadge";
 
@@ -27,7 +28,15 @@ function Section({ title, onEdit, children }: { title: string; onEdit: () => voi
   );
 }
 
-export function ReviewStep({ draft, onEditStep }: { draft: DeclarationDraft; onEditStep: (step: number) => void }) {
+export function ReviewStep({
+  draft,
+  contractName,
+  onEditStep,
+}: {
+  draft: DeclarationDraft;
+  contractName?: string;
+  onEditStep: (step: number) => void;
+}) {
   return (
     <div className="space-y-6">
       <Section title="L'œuvre" onEdit={() => onEditStep(0)}>
@@ -88,6 +97,33 @@ export function ReviewStep({ draft, onEditStep }: { draft: DeclarationDraft; onE
           ))}
         </ul>
       </Section>
+
+      {draft.publication === "editee" && (
+        <Section title={`Éditeurs · ${draft.publishers.length}`} onEdit={() => onEditStep(1)}>
+          <ul className="divide-y divide-line">
+            {draft.publishers.map((p) => (
+              <li key={p.id} className="flex flex-col gap-2 px-5 py-4 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    {p.name || <span className="text-muted">Sans nom</span>}
+                    {p.role && <span className="font-normal text-muted"> · {publisherRoleLabel(p.role)}</span>}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-muted">
+                    {[p.contactName, p.catalogue && `Catalogue ${p.catalogue}`, p.email, p.phone].filter(Boolean).join(" · ")}
+                    {p.ipi && <span className="font-mono"> · IPI {p.ipi}</span>}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full border border-line bg-surface-muted px-2.5 py-1 text-xs">
+                  Éditeur <span className="font-mono font-semibold tabular-nums">{p.share} %</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="border-t border-line px-5 py-3 text-xs text-muted sm:px-6">
+            Contrat d&apos;édition : {contractName ? <span className="font-medium text-foreground">{contractName}</span> : "non joint"}
+          </p>
+        </Section>
+      )}
 
       <p className="text-xs leading-relaxed text-muted">
         En envoyant cette déclaration, vous certifiez que les informations ci-dessus sont exactes et que chaque ayant droit a validé sa part.

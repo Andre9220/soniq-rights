@@ -16,6 +16,7 @@ import {
   type Suggestions,
 } from "@/lib/declaration/fields";
 import { ReviewStep } from "./ReviewStep";
+import { createPublisher } from "@/lib/declaration/publishers";
 import { validateRights } from "@/lib/declaration/rights";
 import { toSubmission } from "@/lib/declaration/submission";
 import { RightsStep } from "./RightsStep";
@@ -29,7 +30,7 @@ const STEPS = [
   },
   {
     title: "Ayants droit",
-    rail: "Auteurs, compositeurs, parts",
+    rail: "Auteurs, compositeurs, éditeurs",
     subtitle: "Indiquez qui a écrit les paroles et composé la musique, avec la part de chacun.",
   },
   {
@@ -51,6 +52,8 @@ export function DeclarationWizard() {
   const [submitted, setSubmitted] = useState<{ reference: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  // Kept in memory only: a file cannot be stored in the localStorage draft.
+  const [contract, setContract] = useState<File | null>(null);
   const [showRightsErrors, setShowRightsErrors] = useState(false);
 
   useEffect(() => {
@@ -116,7 +119,10 @@ export function DeclarationWizard() {
         !bpmError(draft.work.bpm.value) &&
         !iswcError(draft.work.iswc.value)
       : true;
-  const rightsValid = validateRights(draft.rightsHolders, { instrumental: draft.instrumental }).valid;
+  const rightsValid = validateRights(draft.rightsHolders, {
+    instrumental: draft.instrumental,
+    publishers: draft.publication === "editee" ? draft.publishers : undefined,
+  }).valid;
 
   const next = () => {
     if (step === 1 && !rightsValid) {
@@ -136,14 +142,19 @@ export function DeclarationWizard() {
     setSending(true);
     setSendError(null);
     try {
-      const res = await fetch("/api/declarations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toSubmission(draft)),
-      });
+      const payload = JSON.stringify(toSubmission(draft));
+      let init: RequestInit = { method: "POST", headers: { "Content-Type": "application/json" }, body: payload };
+      if (contract && draft.publication === "editee") {
+        const form = new FormData();
+        form.append("declaration", payload);
+        form.append("contract", contract, contract.name);
+        init = { method: "POST", body: form };
+      }
+      const res = await fetch("/api/declarations", init);
       const data = (await res.json().catch(() => ({}))) as { reference?: string; error?: string };
       if (!res.ok || !data.reference) throw new Error(data.error ?? "L'envoi a échoué. Réessayez dans un instant.");
       clearDraft();
+      setContract(null);
       setSubmitted({ reference: data.reference });
       window.scrollTo({ top: 0 });
     } catch (error) {
@@ -268,7 +279,14 @@ export function DeclarationWizard() {
           <WorkStep
             publication={draft.publication}
             originCountry={draft.originCountry}
-            onPublicationChange={(publication) => setDraft((d) => ({ ...d, publication }))}
+            onPublicationChange={(publication) =>
+              setDraft((d) => ({
+                ...d,
+                publication,
+                // Open an empty publisher card the first time the work is marked as published.
+                publishers: publication === "editee" && d.publishers.length === 0 ? [createPublisher()] : d.publishers,
+              }))
+            }
             onCountryChange={(originCountry) => setDraft((d) => ({ ...d, originCountry }))}
             work={draft.work}
             audio={audio.state}
@@ -293,12 +311,16 @@ export function DeclarationWizard() {
           <RightsStep
             holders={draft.rightsHolders}
             instrumental={draft.instrumental}
+            publishers={draft.publication === "editee" ? draft.publishers : undefined}
+            contract={contract}
+            onContractChange={setContract}
             showErrors={showRightsErrors}
             onChange={(rightsHolders) => setDraft((d) => ({ ...d, rightsHolders }))}
+            onPublishersChange={(publishers) => setDraft((d) => ({ ...d, publishers }))}
             onInstrumentalChange={(instrumental) => setDraft((d) => ({ ...d, instrumental }))}
           />
         )}
-        {step === 2 && <ReviewStep draft={draft} onEditStep={setStep} />}
+        {step === 2 && <ReviewStep draft={draft} contractName={contract?.name} onEditStep={setStep} />}
         {step === 2 && sendError && (
           <p role="alert" className="mt-4 rounded-xl border border-danger/20 bg-danger-soft px-4 py-3 text-sm text-danger">
             {sendError}

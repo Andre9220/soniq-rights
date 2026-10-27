@@ -42,6 +42,22 @@ export const submissionSchema = z
       )
       .min(1)
       .max(20),
+    publishers: z
+      .array(
+        z.object({
+          id: text(80),
+          name: text(200),
+          contactName: text(200),
+          catalogue: text(200),
+          role: z.enum(["original", "co", "sub", "admin", ""]),
+          ipi: text(20),
+          email: text(200),
+          phone: text(30),
+          share: text(8),
+        }),
+      )
+      .max(10)
+      .default([]),
     /** Honeypot: hidden field that real users never fill. */
     website: z.string().max(0).optional(),
   })
@@ -51,7 +67,11 @@ export const submissionSchema = z
     if (parseDuration(data.work.duration.value) === null) issue("Durée invalide", ["work", "duration"]);
     if (data.work.bpm.value && parseBpm(data.work.bpm.value) === null) issue("BPM invalide", ["work", "bpm"]);
     if (data.work.iswc.value && !isValidIswc(data.work.iswc.value)) issue("ISWC invalide", ["work", "iswc"]);
-    const rights = validateRights(data.rightsHolders, { instrumental: data.instrumental });
+    if (data.publication === "inedite" && data.publishers.length > 0) issue("Une œuvre inédite n'a pas d'éditeur", ["publishers"]);
+    const rights = validateRights(data.rightsHolders, {
+      instrumental: data.instrumental,
+      publishers: data.publication === "editee" ? data.publishers : undefined,
+    });
     if (!rights.valid) issue(rights.global[0] ?? "Ayants droit incomplets", ["rightsHolders"]);
   });
 
@@ -64,5 +84,7 @@ export function toSubmission(draft: DeclarationDraft): Submission {
     work: draft.work,
     instrumental: draft.instrumental,
     rightsHolders: draft.rightsHolders,
+    // Publishers typed before switching the work back to "inédite" are not sent.
+    publishers: draft.publication === "editee" ? draft.publishers : [],
   };
 }

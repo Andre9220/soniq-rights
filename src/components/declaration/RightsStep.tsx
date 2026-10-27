@@ -1,35 +1,45 @@
 "use client";
 
-import { createRightsHolder, displayName, roleTotal, totalShare, validateRights, type RightsHolder } from "@/lib/declaration/rights";
+import type { Publisher } from "@/lib/declaration/publishers";
+import { createRightsHolder, displayName, roleTotal, validateRights, type RightsHolder } from "@/lib/declaration/rights";
+import { Field } from "./FormField";
+import { PublishersSection } from "./PublishersSection";
 
 interface Props {
   holders: RightsHolder[];
   instrumental: boolean;
+  /** Present only for an "éditée" work. */
+  publishers?: Publisher[];
+  contract: File | null;
+  onContractChange: (file: File | null) => void;
   showErrors: boolean;
   onChange: (holders: RightsHolder[]) => void;
+  onPublishersChange: (publishers: Publisher[]) => void;
   onInstrumentalChange: (instrumental: boolean) => void;
 }
 
 
 /**
- * Splits 100 % evenly between every checked role (a holder who is both author
- * and composer counts twice); the rounding remainder goes to the first ones.
+ * Splits 100 % evenly between every checked role and every publisher (a holder
+ * who is both author and composer counts twice); the rounding remainder goes to
+ * the first ones.
  */
-export function splitEvenly(holders: RightsHolder[]): RightsHolder[] {
-  const slots = holders.flatMap((h) => [
-    ...(h.isAuthor ? [{ id: h.id, key: "authorShare" as const }] : []),
-    ...(h.isComposer ? [{ id: h.id, key: "composerShare" as const }] : []),
-  ]);
-  if (slots.length === 0) return holders;
+export function splitEvenly(holders: RightsHolder[], publishers: Publisher[] = []): { holders: RightsHolder[]; publishers: Publisher[] } {
+  const nextHolders = holders.map((h) => ({ ...h }));
+  const nextPublishers = publishers.map((p) => ({ ...p }));
+  const setters: Array<(value: string) => void> = [
+    ...nextHolders.flatMap((h) => [
+      ...(h.isAuthor ? [(v: string) => (h.authorShare = v)] : []),
+      ...(h.isComposer ? [(v: string) => (h.composerShare = v)] : []),
+    ]),
+    ...nextPublishers.map((p) => (v: string) => (p.share = v)),
+  ];
+  if (setters.length === 0) return { holders, publishers };
   const cents = 10000;
-  const base = Math.floor(cents / slots.length);
-  let remainder = cents - base * slots.length;
-  const next = holders.map((h) => ({ ...h }));
-  for (const slot of slots) {
-    const value = base + (remainder-- > 0 ? 1 : 0);
-    next.find((h) => h.id === slot.id)![slot.key] = String(value / 100).replace(".", ",");
-  }
-  return next;
+  const base = Math.floor(cents / setters.length);
+  let remainder = cents - base * setters.length;
+  for (const set of setters) set(String((base + (remainder-- > 0 ? 1 : 0)) / 100).replace(".", ","));
+  return { holders: nextHolders, publishers: nextPublishers };
 }
 
 function initials(h: RightsHolder) {
@@ -41,28 +51,6 @@ function roleSummary(h: RightsHolder) {
   return roles.length ? roles.join(" · ") : "Aucun rôle sélectionné";
 }
 
-function Field({
-  label,
-  error,
-  optional,
-  children,
-}: {
-  label: string;
-  error?: string;
-  optional?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1.5 block text-[13px] font-medium">
-        {label}
-        {optional ? <span className="font-normal text-muted"> · facultatif</span> : <span className="text-accent"> *</span>}
-      </span>
-      {children}
-      {error && <span className="mt-1.5 block text-xs text-danger">{error}</span>}
-    </label>
-  );
-}
 
 function RoleToggle({
   label,
@@ -149,9 +137,20 @@ function TotalGauge({
   );
 }
 
-export function RightsStep({ holders, instrumental, showErrors, onChange, onInstrumentalChange }: Props) {
+export function RightsStep({
+  holders,
+  instrumental,
+  publishers,
+  contract,
+  onContractChange,
+  showErrors,
+  onChange,
+  onPublishersChange,
+  onInstrumentalChange,
+}: Props) {
   const update = (id: string, patch: Partial<RightsHolder>) => onChange(holders.map((h) => (h.id === id ? { ...h, ...patch } : h)));
-  const validation = validateRights(holders, { instrumental });
+  const validation = validateRights(holders, { instrumental, publishers });
+  const fr = (n: number) => String(n).replace(".", ",");
   const errorsFor = (id: string) => (showErrors ? validation.perHolder[id] ?? {} : {});
   const hasAuthors = holders.some((h) => h.isAuthor);
   const hasComposers = holders.some((h) => h.isComposer);
@@ -308,16 +307,32 @@ export function RightsStep({ holders, instrumental, showErrors, onChange, onInst
         + Ajouter un ayant droit
       </button>
 
+      {publishers && (
+        <PublishersSection
+          publishers={publishers}
+          errors={showErrors ? validation.perPublisher : {}}
+          contract={contract}
+          onChange={onPublishersChange}
+          onContractChange={onContractChange}
+        />
+      )}
+
       <TotalGauge
-        label="Total auteur + compositeur"
-        total={totalShare(holders)}
-        detail={
-          instrumental
-            ? undefined
-            : `dont auteurs ${String(roleTotal(holders, "author")).replace(".", ",")} % · compositeurs ${String(roleTotal(holders, "composer")).replace(".", ",")} %`
-        }
-        disabled={!hasAuthors && !hasComposers}
-        onSplit={() => onChange(splitEvenly(holders))}
+        label={publishers ? "Total auteur + compositeur + éditeur" : "Total auteur + compositeur"}
+        total={validation.totals.all}
+        detail={[
+          !instrumental && `auteurs ${fr(roleTotal(holders, "author"))} %`,
+          `compositeurs ${fr(roleTotal(holders, "composer"))} %`,
+          publishers && `éditeurs ${fr(validation.totals.publisher)} %`,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+        disabled={!hasAuthors && !hasComposers && !publishers?.length}
+        onSplit={() => {
+          const split = splitEvenly(holders, publishers);
+          onChange(split.holders);
+          if (publishers) onPublishersChange(split.publishers);
+        }}
       />
 
       {showErrors && validation.global.length > 0 && (

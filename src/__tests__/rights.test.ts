@@ -80,7 +80,7 @@ describe("roles and shares", () => {
   it("accepts a sole author-composer at 50 % + 50 %", () => {
     const result = validateRights([holder({ isAuthor: true, authorShare: "50", isComposer: true, composerShare: "50" })]);
     expect(result.valid).toBe(true);
-    expect(result.totals).toEqual({ author: 50, composer: 50, all: 100 });
+    expect(result.totals).toEqual({ author: 50, composer: 50, publisher: 0, all: 100 });
   });
 
   it("requires author + composer shares to total exactly 100 % together", () => {
@@ -107,7 +107,7 @@ describe("roles and shares", () => {
   });
 
   it("splits evenly across every checked role, without floating point drift", () => {
-    const holders = splitEvenly([
+    const { holders } = splitEvenly([
       holder({ isAuthor: true, isComposer: true }), // counts twice
       holder({ isComposer: true }),
     ]);
@@ -116,7 +116,7 @@ describe("roles and shares", () => {
       ["", "33,33"],
     ]);
     expect(totalShare(holders)).toBe(100);
-    expect(splitEvenly([holder({})])[0].composerShare).toBe("");
+    expect(splitEvenly([holder({})]).holders[0].composerShare).toBe("");
   });
 
   it("requires an author unless the work is instrumental", () => {
@@ -205,5 +205,95 @@ describe("publication status and origin country in drafts", () => {
     const tampered = JSON.parse(serializeDraft(draft));
     tampered.publication = "autre";
     expect(deserializeDraft(JSON.stringify(tampered))?.publication).toBe("");
+  });
+});
+
+import { createPublisher, normalizePublisher, publisherTotal, validatePublisher, type Publisher } from "@/lib/declaration/publishers";
+
+const publisher = (patch: Partial<Publisher>): Publisher => ({
+  ...createPublisher(),
+  name: "Éditions Exemple",
+  contactName: "Marie Durand",
+  catalogue: "Électro 2026",
+  role: "original",
+  email: "contact@editions.fr",
+  phone: "+33 1 23 45 67 89",
+  ...patch,
+});
+
+describe("publishers (œuvre éditée)", () => {
+  it("validates the publisher card", () => {
+    expect(validatePublisher(publisher({ share: "33,33" }))).toEqual({});
+    expect(validatePublisher({ ...createPublisher(), share: "" })).toMatchObject({
+      name: "Raison sociale requise",
+      contactName: "Nom requis",
+      catalogue: "Catalogue requis",
+      role: "Choisissez un rôle",
+      share: "Part éditeur entre 0 et 100 %",
+      email: "Adresse e-mail invalide",
+      phone: "Numéro de portable invalide",
+    });
+    expect(validatePublisher(publisher({ share: "10", ipi: "12" })).ipi).toBe("IPI : 9 à 11 chiffres");
+  });
+
+  it("includes publisher shares in the 100 % key (Sacem thirds)", () => {
+    const holders = [holder({ isAuthor: true, authorShare: "33,34" }), holder({ isComposer: true, composerShare: "33,33" })];
+    const result = validateRights(holders, { publishers: [publisher({ share: "33,33" })] });
+    expect(result.valid).toBe(true);
+    expect(result.totals).toEqual({ author: 33.34, composer: 33.33, publisher: 33.33, all: 100 });
+  });
+
+  it("rejects a published work whose key ignores the publisher", () => {
+    const holders = [holder({ isAuthor: true, authorShare: "50", isComposer: true, composerShare: "50" })];
+    const result = validateRights(holders, { publishers: [publisher({ share: "20" })] });
+    expect(result.global).toContain("Le total auteur + compositeur + éditeur fait 120 % au lieu de 100 %.");
+  });
+
+  it("requires at least one publisher for a published work", () => {
+    const holders = [holder({ isAuthor: true, authorShare: "50", isComposer: true, composerShare: "50" })];
+    expect(validateRights(holders, { publishers: [] }).global).toContain("Une œuvre éditée doit avoir au moins un éditeur.");
+    expect(validateRights(holders).valid).toBe(true); // inédite: no publisher needed
+  });
+
+  it("reports per-publisher errors", () => {
+    const p = { ...createPublisher("p1"), share: "100" };
+    const result = validateRights([holder({ isComposer: true, composerShare: "0" })], { publishers: [p] });
+    expect(result.perPublisher.p1.name).toBeDefined();
+    expect(result.valid).toBe(false);
+  });
+
+  it("splits evenly across holders and publishers", () => {
+    const split = splitEvenly([holder({ isAuthor: true }), holder({ isComposer: true })], [publisher({})]);
+    expect([split.holders[0].authorShare, split.holders[1].composerShare, split.publishers[0].share]).toEqual(["33,34", "33,33", "33,33"]);
+    expect(publisherTotal(split.publishers)).toBe(33.33);
+  });
+
+  it("migrates and round-trips publishers in drafts", () => {
+    expect(normalizePublisher({ name: "X", role: "pirate" })).toMatchObject({ name: "X", share: "", ipi: "", catalogue: "", role: "" });
+    expect(normalizePublisher({ role: "sub" }).role).toBe("sub");
+    const draft = createEmptyDraft();
+    draft.publication = "editee";
+    draft.publishers = [publisher({ share: "25", contactName: "Marie" })];
+    expect(deserializeDraft(serializeDraft(draft))?.publishers[0]).toMatchObject({ name: "Éditions Exemple", contactName: "Marie", share: "25" });
+    expect(deserializeDraft(JSON.stringify({ work: {} }))?.publishers).toEqual([]);
+  });
+});
+
+import { checkContractFile, MAX_CONTRACT_BYTES, sniffContractKind } from "@/lib/declaration/contract";
+
+describe("publishing contract file", () => {
+  it("identifies PDF, JPEG and PNG from their first bytes", () => {
+    expect(sniffContractKind(new TextEncoder().encode("%PDF-1.7"))).toBe("pdf");
+    expect(sniffContractKind(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe("jpeg");
+    expect(sniffContractKind(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe("png");
+    expect(sniffContractKind(new TextEncoder().encode("PK\u0003\u0004 docx"))).toBeNull();
+  });
+
+  it("checks extension, emptiness and size before upload", () => {
+    expect(checkContractFile({ name: "contrat.pdf", size: 1000, type: "application/pdf" })).toBeNull();
+    expect(checkContractFile({ name: "scan.JPG", size: 1000, type: "image/jpeg" })).toBeNull();
+    expect(checkContractFile({ name: "contrat.docx", size: 1000, type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })).toMatch(/PDF, JPG ou PNG/);
+    expect(checkContractFile({ name: "contrat.pdf", size: 0, type: "application/pdf" })).toMatch(/vide/);
+    expect(checkContractFile({ name: "contrat.pdf", size: MAX_CONTRACT_BYTES + 1, type: "application/pdf" })).toMatch(/4 Mo/);
   });
 });

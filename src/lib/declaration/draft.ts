@@ -1,4 +1,5 @@
 import type { AutoFields, TrackedField } from "./fields";
+import { normalizePublisher, type Publisher } from "./publishers";
 import { createRightsHolder, normalizeHolder, type RightsHolder } from "./rights";
 
 export type { RightsHolder } from "./rights";
@@ -21,6 +22,8 @@ export interface DeclarationDraft {
   /** Instrumental works have no lyrics, hence no author share. */
   instrumental: boolean;
   rightsHolders: RightsHolder[];
+  /** Only used when the work is "éditée"; kept in the draft if the status is switched back. */
+  publishers: Publisher[];
   updatedAt: string | null;
 }
 
@@ -34,6 +37,7 @@ export function createEmptyDraft(): DeclarationDraft {
     work: { title: field(), duration: field(), bpm: field(), genre: field(), isrc: field(), iswc: field() },
     instrumental: false,
     rightsHolders: [createRightsHolder("rh-1")],
+    publishers: [],
     updatedAt: null,
   };
 }
@@ -70,6 +74,7 @@ export function deserializeDraft(raw: string | null): DeclarationDraft | null {
         Array.isArray(parsed.rightsHolders) && parsed.rightsHolders.length
           ? parsed.rightsHolders.map(normalizeHolder)
           : base.rightsHolders,
+      publishers: Array.isArray(parsed.publishers) ? parsed.publishers.map(normalizePublisher) : [],
       updatedAt: parsed.updatedAt ?? null,
     };
   } catch {

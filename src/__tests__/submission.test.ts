@@ -66,6 +66,107 @@ describe("submissionSchema", () => {
   });
 });
 
+describe("œuvre éditée", () => {
+  const edited = (): Submission => {
+    const s = validSubmission();
+    s.publication = "editee";
+    s.rightsHolders[0].authorShare = "40";
+    s.rightsHolders[0].composerShare = "15";
+    s.rightsHolders[1].composerShare = "15";
+    s.publishers = [
+      { id: "p", name: "Éditions Exemple", contactName: "Marie Durand", catalogue: "Électro 2026", role: "original", ipi: "", email: "contact@editions.fr", phone: "+33 6 98 76 54 32", share: "30" },
+    ];
+    return s;
+  };
+
+  it("accepts a published work whose key includes the publisher", () => {
+    expect(submissionSchema.safeParse(edited()).success).toBe(true);
+  });
+
+  it("rejects a published work without publisher", () => {
+    const s = edited();
+    s.publishers = [];
+    expect(submissionSchema.safeParse(s).error?.issues.map((i) => i.message)).toContain("Une œuvre éditée doit avoir au moins un éditeur.");
+  });
+
+  it("rejects publishers on an unpublished work", () => {
+    const s = edited();
+    s.publication = "inedite";
+    expect(submissionSchema.safeParse(s).success).toBe(false);
+  });
+
+  it("does not send publishers typed before switching back to inédite", () => {
+    const draft = createEmptyDraft();
+    draft.publication = "inedite";
+    draft.publishers = [{ id: "p", name: "X", contactName: "", catalogue: "", role: "", ipi: "", email: "", phone: "", share: "" }];
+    expect(toSubmission(draft).publishers).toEqual([]);
+  });
+
+  it("lists the publisher in the PDF and the e-mail", async () => {
+    const doc = await PDFDocument.load(await renderDeclarationPdf(edited(), { reference: "SR-3", submittedAt: new Date() }));
+    expect(doc.getPageCount()).toBeGreaterThanOrEqual(1);
+    const { send, deps: d } = deps();
+    expect((await handleDeclarationSubmission(post(edited()), d)).status).toBe(201);
+    const message = vi.mocked(send).mock.calls[0][0];
+    expect(message.html).toContain("Éditions Exemple");
+    expect(message.text).toContain("éditeur original 30 %");
+    expect(message.text).toContain("catalogue Électro 2026");
+  });
+
+  it("rejects a publisher without name, catalogue or role", () => {
+    const s = edited();
+    s.publishers[0].catalogue = "";
+    expect(submissionSchema.safeParse(s).success).toBe(false);
+  });
+
+  describe("publishing contract (multipart)", () => {
+    const PDF = new TextEncoder().encode("%PDF-1.4\n% contrat\n");
+    const multipart = (s: Submission, file?: File) => {
+      const form = new FormData();
+      form.append("declaration", JSON.stringify(s));
+      if (file) form.append("contract", file);
+      return new Request("http://localhost/api/declarations", { method: "POST", body: form });
+    };
+
+    it("attaches the contract next to the declaration PDF", async () => {
+      const { send, deps: d } = deps();
+      const res = await handleDeclarationSubmission(multipart(edited(), new File([PDF], "Contrat signé.pdf", { type: "application/pdf" })), d);
+      expect(res.status).toBe(201);
+      const message = vi.mocked(send).mock.calls[0][0];
+      expect(message.attachments.map((a) => a.filename)).toEqual([
+        "declaration-lumiere-du-nord-SR-20261027-ABC123.pdf",
+        "contrat-edition-lumiere-du-nord-SR-20261027-ABC123.pdf",
+      ]);
+      expect(message.text).toContain("contrat d'édition sont joints");
+    });
+
+    it("accepts a multipart declaration without contract", async () => {
+      const { send, deps: d } = deps();
+      expect((await handleDeclarationSubmission(multipart(edited()), d)).status).toBe(201);
+      expect(vi.mocked(send).mock.calls[0][0].attachments).toHaveLength(1);
+    });
+
+    it("rejects a file that is not really a PDF or an image", async () => {
+      const { send, deps: d } = deps();
+      const fake = new File(["MZ not a pdf"], "contrat.pdf", { type: "application/pdf" });
+      expect((await handleDeclarationSubmission(multipart(edited(), fake), d)).status).toBe(415);
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it("rejects a contract on an unpublished work", async () => {
+      const { deps: d } = deps();
+      const s = validSubmission();
+      expect((await handleDeclarationSubmission(multipart(s, new File([PDF], "c.pdf")), d)).status).toBe(422);
+    });
+
+    it("rejects contracts over 4 MB", async () => {
+      const { deps: d } = deps();
+      const big = new File([PDF, new Uint8Array(4 * 1024 * 1024)], "c.pdf", { type: "application/pdf" });
+      expect((await handleDeclarationSubmission(multipart(edited(), big), d)).status).toBe(413);
+    });
+  });
+});
+
 describe("PDF", () => {
   it("renders a readable A4 document with metadata", async () => {
     const bytes = await renderDeclarationPdf(validSubmission(), { reference: "SR-1", submittedAt: new Date("2026-10-27T10:00:00Z") });
