@@ -1,4 +1,6 @@
 import { formatDuration } from "./duration";
+import type { GenreEstimate } from "./genre";
+import type { GenreClassifier } from "./genreClassifier";
 import { validateAudioFile } from "./formats";
 import { segmentWindows, summarizeTempo, TEMPO_RANGE, type TempoEstimate } from "./tempo";
 import { suggestTitle, type TitleSource } from "./title";
@@ -20,6 +22,8 @@ export interface AudioContextLike {
 export interface AnalyzerDeps {
   createAudioContext: () => AudioContextLike;
   loadDetector: () => Promise<BeatDetector>;
+  /** Optional: genre detection is skipped when absent. */
+  genreClassifier?: GenreClassifier;
 }
 
 export type AnalysisErrorCode = "unsupported-format" | "empty" | "too-large" | "decode-failed" | "aborted";
@@ -40,10 +44,13 @@ export interface AudioAnalysis {
   /** null when tempo detection failed — the duration is still usable. */
   tempo: TempoEstimate | null;
   tempoError: string | null;
+  /** null when genre detection failed or was skipped. */
+  genre: GenreEstimate | null;
+  genreError: string | null;
   title: { title: string; source: TitleSource } | null;
 }
 
-export type AnalysisStage = "reading" | "decoding" | "tempo";
+export type AnalysisStage = "reading" | "decoding" | "tempo" | "genre";
 
 function throwIfAborted(signal?: AbortSignal) {
   if (signal?.aborted) throw new AudioAnalysisError("aborted", "Analyse annulée.");
@@ -114,7 +121,19 @@ export async function analyzeAudioFile(
       tempoError = "Tempo non détecté (rythme peu marqué ou morceau trop court). Saisissez le BPM manuellement.";
     }
 
-    return { durationSeconds, durationLabel: formatDuration(durationSeconds), tempo, tempoError, title };
+    let genre: GenreEstimate | null = null;
+    let genreError: string | null = null;
+    if (deps.genreClassifier) {
+      onStage?.("genre");
+      try {
+        genre = await deps.genreClassifier.classify(audioBuffer, signal);
+      } catch {
+        genreError = "Genre non détecté. Vous pouvez le saisir manuellement.";
+      }
+      throwIfAborted(signal);
+    }
+
+    return { durationSeconds, durationLabel: formatDuration(durationSeconds), tempo, tempoError, genre, genreError, title };
   } finally {
     if (context.state !== "closed") await context.close().catch(() => undefined);
   }
@@ -129,4 +148,7 @@ export const browserAnalyzerDeps: AnalyzerDeps = {
     return new Ctor();
   },
   loadDetector: async () => (await import("web-audio-beat-detector")) as unknown as BeatDetector,
+  genreClassifier: {
+    classify: async (buffer, signal) => (await import("./genreClassifier")).browserGenreClassifier.classify(buffer, signal),
+  },
 };

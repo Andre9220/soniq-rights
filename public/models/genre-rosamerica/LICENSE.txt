@@ -1,0 +1,9 @@
+genre_rosamerica-musicnn-msd-2 (TensorFlow.js)
+Copyright Universitat Pompeu Fabra (Music Technology Group) 2019-2021.
+Source: https://essentia.upf.edu/models/classifiers/genre_rosamerica/
+
+Distributed under Creative Commons Attribution-NonCommercial 4.0 (see
+https://essentia.upf.edu/models/LICENSE). Commercial use requires a proprietary
+license from the MTG: https://www.upf.edu/web/mtg/contact
+
+Alonso-Jiménez, Bogdanov, Pons, Serra. "Tensorflow Audio Models in Essentia", ICASSP 2020.

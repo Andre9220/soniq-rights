@@ -8,6 +8,7 @@ const STAGE_LABELS: Record<AnalysisStage, string> = {
   reading: "Lecture du fichier…",
   decoding: "Décodage audio…",
   tempo: "Estimation du tempo…",
+  genre: "Reconnaissance du genre…",
 };
 
 const CONFIDENCE_LABELS = { high: "fiabilité élevée", medium: "fiabilité moyenne", low: "fiabilité faible" } as const;
@@ -20,9 +21,11 @@ interface Props {
   onCancel: () => void;
   onRemove: () => void;
   onPickBpm: (bpm: number) => void;
+  onPickGenre: (label: string) => void;
+  currentGenre: string;
 }
 
-export function AudioCard({ state, hasUnconfirmed, onConfirm, onCorrect, onCancel, onRemove, onPickBpm }: Props) {
+export function AudioCard({ state, hasUnconfirmed, onConfirm, onCorrect, onCancel, onRemove, onPickBpm, onPickGenre, currentGenre }: Props) {
   const { file, url } = state;
   const analysis = state.status === "ready" ? state.analysis : null;
   const tempo = analysis?.tempo ?? null;
@@ -124,6 +127,40 @@ export function AudioCard({ state, hasUnconfirmed, onConfirm, onCorrect, onCance
                 )}
               </div>
             )}
+
+            {analysis.genre && !analysis.genre.speech && (
+              <div className="space-y-2">
+                <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted">
+                  Genre probable
+                  <span className="rounded-full bg-warn-soft px-1.5 py-px text-[10px] normal-case tracking-normal text-warn">estimation</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {analysis.genre.candidates.map((c) => {
+                    const selected = currentGenre === c.label;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => onPickGenre(c.label)}
+                        className={`rounded-full border px-3 py-1 text-xs transition ${
+                          selected ? "border-accent bg-accent-soft text-accent" : "border-line hover:border-accent hover:text-accent"
+                        }`}
+                      >
+                        {c.label} <span className="tabular-nums text-muted">{Math.round(c.probability * 100)} %</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {!analysis.genre.confident && (
+                  <p className="text-[11px] text-muted">Résultat incertain : choisissez le genre le plus proche ou saisissez-le.</p>
+                )}
+              </div>
+            )}
+            {analysis.genre?.speech && (
+              <p className="rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn">Le fichier semble surtout parlé : aucun genre musical proposé.</p>
+            )}
+            {analysis.genreError && <p className="text-xs text-muted">{analysis.genreError}</p>}
 
             {analysis.title && (
               <p className="text-xs text-muted">

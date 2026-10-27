@@ -14,7 +14,7 @@ export interface TrackedField {
   source: FieldSource;
 }
 
-export type AutoFieldKey = "title" | "duration" | "bpm";
+export type AutoFieldKey = "title" | "duration" | "bpm" | "genre";
 
 export type AutoFields = Record<AutoFieldKey, TrackedField>;
 
@@ -27,6 +27,9 @@ export function detectedValues(analysis: AudioAnalysis): Suggestions {
   const values: Suggestions = { duration: analysis.durationLabel };
   if (analysis.tempo) values.bpm = String(analysis.tempo.bpm).replace(".", ",");
   if (analysis.title) values.title = analysis.title.title;
+  // A genre is only prefilled when the model is clearly confident; otherwise
+  // the candidates are shown on the audio card for the user to pick from.
+  if (analysis.genre?.confident) values.genre = analysis.genre.candidates[0].label;
   return values;
 }
 

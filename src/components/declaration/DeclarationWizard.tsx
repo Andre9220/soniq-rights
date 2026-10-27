@@ -51,7 +51,7 @@ export function DeclarationWizard() {
 
   const handleAnalyzed = useCallback((analysis: AudioAnalysis) => {
     setDraft((d) => {
-      const auto: AutoWork = { title: d.work.title, duration: d.work.duration, bpm: d.work.bpm };
+      const auto: AutoWork = { title: d.work.title, duration: d.work.duration, bpm: d.work.bpm, genre: d.work.genre };
       const result = applyDetection(auto, detectedValues(analysis));
       setSuggestions(result.suggestions);
       return { ...d, work: { ...d.work, ...result.fields } };
@@ -61,7 +61,7 @@ export function DeclarationWizard() {
   const audio = useAudioImport(handleAnalyzed);
 
   const updateAuto = (fn: (fields: AutoWork) => AutoWork) =>
-    setDraft((d) => ({ ...d, work: { ...d.work, ...fn({ title: d.work.title, duration: d.work.duration, bpm: d.work.bpm }) } }));
+    setDraft((d) => ({ ...d, work: { ...d.work, ...fn({ title: d.work.title, duration: d.work.duration, bpm: d.work.bpm, genre: d.work.genre }) } }));
 
   const onFile = async (file: File) => {
     setDropError(null);
@@ -91,7 +91,7 @@ export function DeclarationWizard() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const hasUnconfirmed = (["title", "duration", "bpm"] as const).some((k) => draft.work[k].source === "auto");
+  const hasUnconfirmed = (["title", "duration", "bpm", "genre"] as const).some((k) => draft.work[k].source === "auto");
   const canContinue =
     step === 0
       ? draft.work.title.value.trim() !== "" &&
@@ -181,6 +181,7 @@ export function DeclarationWizard() {
             updateAuto(clearAutoValues);
           }}
           onPickBpm={(bpm) => onEdit("bpm", String(bpm).replace(".", ","))}
+          onPickGenre={(label) => onEdit("genre", label)}
         />
       )}
       {step === 1 && (

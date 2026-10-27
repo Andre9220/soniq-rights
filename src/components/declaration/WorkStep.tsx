@@ -24,6 +24,7 @@ interface Props {
   onCancelAnalysis: () => void;
   onRemoveFile: () => void;
   onPickBpm: (bpm: number) => void;
+  onPickGenre: (label: string) => void;
 }
 
 export function durationError(value: string) {
@@ -42,7 +43,7 @@ export function WorkStep(props: Props) {
   const { work, audio, suggestions, onEdit } = props;
   const durationRef = useRef<HTMLInputElement>(null);
   const hasFile = audio.status !== "idle" && audio.status !== "rejected";
-  const hasUnconfirmed = (["title", "duration", "bpm"] as const).some((k) => work[k].source === "auto");
+  const hasUnconfirmed = (["title", "duration", "bpm", "genre"] as const).some((k) => work[k].source === "auto");
 
   return (
     <div className="space-y-6">
@@ -60,6 +61,8 @@ export function WorkStep(props: Props) {
               onCancel={props.onCancelAnalysis}
               onRemove={props.onRemoveFile}
               onPickBpm={props.onPickBpm}
+              onPickGenre={props.onPickGenre}
+              currentGenre={work.genre.value}
             />
             <AudioDropzone onFile={props.onFile} error={props.dropError} compact />
           </>
@@ -116,7 +119,16 @@ export function WorkStep(props: Props) {
           suggestion={suggestions.bpm}
           onAcceptSuggestion={() => props.onAcceptSuggestion("bpm")}
         />
-        <TrackedInput id="genre" label="Genre" field={work.genre} onChange={(v) => onEdit("genre", v)} placeholder="Électro, pop, jazz…" />
+        <TrackedInput
+          id="genre"
+          label="Genre"
+          field={work.genre}
+          onChange={(v) => onEdit("genre", v)}
+          placeholder="Électro, pop, jazz…"
+          hint={work.genre.source === "auto" ? "Suggestion automatique — à vérifier" : undefined}
+          suggestion={suggestions.genre}
+          onAcceptSuggestion={() => props.onAcceptSuggestion("genre")}
+        />
         <TrackedInput
           id="iswc"
           label="ISWC (facultatif)"

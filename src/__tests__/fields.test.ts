@@ -10,7 +10,7 @@ import {
   type AutoFields,
 } from "@/lib/declaration/fields";
 
-const empty = (): AutoFields => ({ title: emptyField(), duration: emptyField(), bpm: emptyField() });
+const empty = (): AutoFields => ({ title: emptyField(), duration: emptyField(), bpm: emptyField(), genre: emptyField() });
 const detected = { title: "Nuit Blanche", duration: "3:42", bpm: "120" };
 
 describe("applyDetection", () => {
