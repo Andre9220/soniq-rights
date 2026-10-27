@@ -50,6 +50,7 @@ describe("genre prefilling", () => {
   const analysis = (genre: ReturnType<typeof summarizeGenre> | null) => ({
     durationSeconds: 200,
     durationLabel: "3:20",
+    peaks: [],
     tempo: null,
     tempoError: null,
     genre,
@@ -98,5 +99,18 @@ describe("analyzer with genre classifier", () => {
     expect(result.tempo?.bpm).toBe(120);
     expect(result.genre).toBeNull();
     expect(result.genreError).toMatch(/manuellement/);
+  });
+});
+
+import { computePeaks } from "@/lib/audio/waveform";
+
+describe("computePeaks", () => {
+  it("returns normalised peaks per bin", () => {
+    const samples = new Float32Array([0.1, -0.2, 0.5, -0.5, 0, 0.25, -0.1, 0.05]);
+    expect(computePeaks(samples, 4)).toEqual([0.4, 1, 0.5, 0.2]);
+  });
+  it("handles silence and empty input", () => {
+    expect(computePeaks(new Float32Array(8), 4)).toEqual([0, 0, 0, 0]);
+    expect(computePeaks(new Float32Array(0), 4)).toEqual([]);
   });
 });

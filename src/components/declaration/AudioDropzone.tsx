@@ -1,23 +1,32 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { AUDIO_ACCEPT, MAX_AUDIO_FILE_BYTES, formatFileSize } from "@/lib/audio/formats";
 
 interface Props {
   onFile: (file: File) => void;
   error?: string | null;
-  compact?: boolean;
+  /** Renders only the hidden input (used for "Remplacer" on the audio card). */
+  hidden?: boolean;
 }
 
-export function AudioDropzone({ onFile, error, compact = false }: Props) {
+export interface AudioDropzoneHandle {
+  open: () => void;
+}
+
+export const AudioDropzone = forwardRef<AudioDropzoneHandle, Props>(function AudioDropzone({ onFile, error, hidden = false }, ref) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  useImperativeHandle(ref, () => ({ open: () => inputRef.current?.click() }), []);
 
   const pick = (files: FileList | null) => {
     const file = files?.[0];
     if (file) onFile(file);
     if (inputRef.current) inputRef.current.value = "";
   };
+
+  const input = <input ref={inputRef} type="file" accept={AUDIO_ACCEPT} className="sr-only" tabIndex={-1} onChange={(e) => pick(e.target.files)} />;
+  if (hidden) return input;
 
   return (
     <div>
@@ -42,34 +51,45 @@ export function AudioDropzone({ onFile, error, compact = false }: Props) {
           setDragging(false);
           pick(e.dataTransfer.files);
         }}
-        className={`group flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-          compact ? "gap-1 px-4 py-4" : "gap-3 px-6 py-10 sm:py-12"
-        } ${dragging ? "border-accent bg-accent-soft" : "border-line bg-surface hover:border-accent/60"}`}
+        className={`group relative flex cursor-pointer flex-col items-center justify-center gap-4 overflow-hidden rounded-2xl border-[1.5px] border-dashed px-6 py-12 text-center transition-colors focus:outline-none focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent/15 sm:py-14 ${
+          dragging ? "border-accent bg-accent-soft" : "border-line-strong bg-surface hover:border-accent/70 hover:bg-accent-soft/40"
+        }`}
       >
-        {!compact && (
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent transition group-hover:scale-105">
-            <svg aria-hidden viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M9 18V5l12-2v13" strokeLinecap="round" strokeLinejoin="round" />
-              <circle cx="6" cy="18" r="3" />
-              <circle cx="18" cy="16" r="3" />
+        <span className="flex h-12 items-end gap-1" aria-hidden>
+          {[0.35, 0.7, 1, 0.55, 0.85, 0.4].map((h, i) => (
+            <span
+              key={i}
+              className="w-1.5 rounded-full bg-gradient-to-t from-brand-deep to-brand-sky transition-transform duration-300 group-hover:scale-y-110"
+              style={{ height: `${h * 100}%`, transitionDelay: `${i * 30}ms` }}
+            />
+          ))}
+        </span>
+        <div className="space-y-1">
+          <p className="font-display text-base font-semibold">{dragging ? "Déposez le fichier" : "Glissez votre morceau ici"}</p>
+          <p className="text-sm text-muted">
+            ou <span className="font-medium text-accent underline-offset-4 group-hover:underline">choisissez un fichier</span>
+          </p>
+        </div>
+        <ul className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-muted">
+          <li>MP3 · WAV</li>
+          <li aria-hidden>·</li>
+          <li>{formatFileSize(MAX_AUDIO_FILE_BYTES)} max.</li>
+          <li aria-hidden>·</li>
+          <li className="inline-flex items-center gap-1">
+            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+              <rect x="3" y="7" width="10" height="7" rx="1.5" />
+              <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
             </svg>
-          </span>
-        )}
-        <p className="text-sm font-medium">
-          {compact ? "Remplacer le fichier" : "Glissez votre morceau ici"}
-          <span className="text-muted"> ou </span>
-          <span className="text-accent underline-offset-2 group-hover:underline">parcourez</span>
-        </p>
-        <p className="text-xs text-muted">
-          MP3 ou WAV · {formatFileSize(MAX_AUDIO_FILE_BYTES)} max. · analysé dans votre navigateur, rien n&apos;est envoyé
-        </p>
-        <input ref={inputRef} type="file" accept={AUDIO_ACCEPT} className="sr-only" onChange={(e) => pick(e.target.files)} />
+            Analysé sur votre appareil
+          </li>
+        </ul>
+        {input}
       </div>
       {error && (
-        <p role="alert" className="mt-2 rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger">
+        <p role="alert" className="mt-2 rounded-xl border border-danger/20 bg-danger-soft px-3.5 py-2.5 text-xs text-danger">
           {error}
         </p>
       )}
     </div>
   );
-}
+});

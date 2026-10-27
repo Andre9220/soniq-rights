@@ -4,6 +4,7 @@ import type { GenreClassifier } from "./genreClassifier";
 import { validateAudioFile } from "./formats";
 import { segmentWindows, summarizeTempo, TEMPO_RANGE, type TempoEstimate } from "./tempo";
 import { suggestTitle, type TitleSource } from "./title";
+import { computePeaks } from "./waveform";
 
 /** Subset of `web-audio-beat-detector` used here, injectable for tests. */
 export interface BeatDetector {
@@ -41,6 +42,8 @@ export class AudioAnalysisError extends Error {
 export interface AudioAnalysis {
   durationSeconds: number;
   durationLabel: string;
+  /** Normalised peaks (0–1) for the waveform display. */
+  peaks: number[];
   /** null when tempo detection failed — the duration is still usable. */
   tempo: TempoEstimate | null;
   tempoError: string | null;
@@ -97,6 +100,8 @@ export async function analyzeAudioFile(
       throw new AudioAnalysisError("decode-failed", "Durée illisible : le fichier ne contient pas d'audio exploitable.");
     }
 
+    const peaks = typeof audioBuffer.getChannelData === "function" ? computePeaks(audioBuffer.getChannelData(0)) : [];
+
     onStage?.("tempo");
     let tempo: TempoEstimate | null = null;
     let tempoError: string | null = null;
@@ -133,7 +138,7 @@ export async function analyzeAudioFile(
       throwIfAborted(signal);
     }
 
-    return { durationSeconds, durationLabel: formatDuration(durationSeconds), tempo, tempoError, genre, genreError, title };
+    return { durationSeconds, durationLabel: formatDuration(durationSeconds), peaks, tempo, tempoError, genre, genreError, title };
   } finally {
     if (context.state !== "closed") await context.close().catch(() => undefined);
   }

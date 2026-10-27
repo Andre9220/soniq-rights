@@ -16,19 +16,21 @@ interface Props {
   onAcceptSuggestion?: () => void;
   inputMode?: "text" | "numeric" | "decimal";
   required?: boolean;
+  /** Monospaced digits for codes and durations. */
+  mono?: boolean;
 }
 
 export const TrackedInput = forwardRef<HTMLInputElement, Props>(function TrackedInput(
-  { id, label, field, onChange, placeholder, hint, error, suggestion, onAcceptSuggestion, inputMode = "text", required },
+  { id, label, field, onChange, placeholder, hint, error, suggestion, onAcceptSuggestion, inputMode = "text", required, mono = false },
   ref,
 ) {
   const highlighted = field.source === "auto";
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <label htmlFor={id} className="text-sm font-medium">
+        <label htmlFor={id} className="text-[13px] font-medium">
           {label}
-          {required && <span className="text-muted"> *</span>}
+          {required && <span className="text-accent"> *</span>}
         </label>
         <SourceBadge source={field.source} />
       </div>
@@ -41,17 +43,16 @@ export const TrackedInput = forwardRef<HTMLInputElement, Props>(function Tracked
         inputMode={inputMode}
         aria-invalid={error ? true : undefined}
         aria-describedby={`${id}-hint`}
-        className={`w-full rounded-xl border bg-surface px-3.5 py-2.5 text-base outline-none transition placeholder:text-muted/60 focus:border-accent focus:ring-2 focus:ring-accent/20 sm:text-sm ${
-          error ? "border-danger" : highlighted ? "border-auto/50 bg-auto-soft/40" : "border-line"
-        }`}
+        data-auto={highlighted || undefined}
+        className={`field-input ${mono ? "font-mono tabular-nums" : ""}`}
       />
-      <div id={`${id}-hint`} className="mt-1 min-h-4 text-xs">
+      <div id={`${id}-hint`} className="mt-1.5 min-h-4 text-xs">
         {error ? (
           <span className="text-danger">{error}</span>
         ) : suggestion && onAcceptSuggestion ? (
           <span className="text-muted">
             Détecté : <span className="text-foreground">{suggestion}</span>{" "}
-            <button type="button" onClick={onAcceptSuggestion} className="font-medium text-accent hover:underline">
+            <button type="button" onClick={onAcceptSuggestion} className="font-semibold text-accent underline-offset-2 hover:underline">
               Utiliser
             </button>
           </span>

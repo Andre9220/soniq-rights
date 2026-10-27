@@ -1,38 +1,57 @@
 @import "tailwindcss";
 
+/* SONIQ RIGHTS — tokens derived from the brand mark (navy ink, electric blue gradient). */
 :root {
-  --background: #f7f7f5;
+  --background: #f5f7fb;
   --surface: #ffffff;
-  --surface-muted: #f1f1ee;
-  --foreground: #16161a;
-  --muted: #6b6b73;
-  --border: #e4e4df;
-  --accent: #5b3df5;
-  --accent-soft: #eeeaff;
-  --auto: #0e7a5a;
-  --auto-soft: #e3f5ee;
-  --warn: #9a5b00;
-  --warn-soft: #fff3dc;
-  --danger: #b42318;
-  --danger-soft: #fdecea;
+  --surface-muted: #f0f3f8;
+  --foreground: #0a1428;
+  --muted: #5b6478;
+  --border: #e2e7ef;
+  --border-strong: #cdd5e1;
+
+  --ink: #0a1428;
+  --ink-2: #102043;
+  --brand-sky: #12a8ff;
+  --brand: #0b6bff;
+  --brand-deep: #0a2a7a;
+
+  --accent: #0b5fff;
+  --accent-soft: #e8f0ff;
+  --auto: #0b78d1;
+  --auto-soft: #e6f4ff;
+  --success: #0f8a4f;
+  --success-soft: #e4f6ec;
+  --warn: #9a5800;
+  --warn-soft: #fff4de;
+  --danger: #c0262d;
+  --danger-soft: #fdecec;
+
+  --shadow-card: 0 1px 2px rgba(10, 20, 40, 0.04), 0 8px 24px -12px rgba(10, 20, 40, 0.12);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0d0d10;
-    --surface: #16161b;
-    --surface-muted: #1d1d23;
-    --foreground: #ededf0;
-    --muted: #9b9ba6;
-    --border: #2a2a32;
-    --accent: #8b74ff;
-    --accent-soft: #241d45;
-    --auto: #4fd1a5;
-    --auto-soft: #11302a;
-    --warn: #f3b44c;
-    --warn-soft: #33270f;
-    --danger: #ff8a80;
-    --danger-soft: #3a1714;
+    --background: #060c18;
+    --surface: #0c1526;
+    --surface-muted: #111d33;
+    --foreground: #e8edf6;
+    --muted: #8c97ad;
+    --border: #1b2740;
+    --border-strong: #26355a;
+
+    --accent: #3d8bff;
+    --accent-soft: #10244a;
+    --auto: #4cb3ff;
+    --auto-soft: #0e2a45;
+    --success: #3fcf8a;
+    --success-soft: #0f2e22;
+    --warn: #f2b14a;
+    --warn-soft: #33260e;
+    --danger: #ff7b7b;
+    --danger-soft: #3a1518;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -43,16 +62,26 @@
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-brand-sky: var(--brand-sky);
+  --color-brand: var(--brand);
+  --color-brand-deep: var(--brand-deep);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-auto: var(--auto);
   --color-auto-soft: var(--auto-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
   --color-warn: var(--warn);
   --color-warn-soft: var(--warn-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-sora);
   --font-mono: var(--font-geist-mono);
+  --shadow-card: var(--shadow-card);
 }
 
 body {
@@ -60,7 +89,39 @@ body {
   color: var(--foreground);
 }
 
-audio {
-  width: 100%;
-  height: 40px;
+::selection {
+  background: color-mix(in srgb, var(--brand) 25%, transparent);
+}
+
+/* Shared control styles, so every input and button in the flow looks the same. */
+@layer components {
+  .field-input {
+    @apply h-11 w-full rounded-[10px] border border-line bg-surface px-3.5 text-[15px] text-foreground outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted/70 hover:border-line-strong focus:border-accent sm:text-sm;
+  }
+  .field-input:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .field-input[aria-invalid="true"] {
+    border-color: var(--danger);
+  }
+  .field-input[aria-invalid="true"]:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+  }
+  .field-input[data-auto="true"] {
+    border-color: color-mix(in srgb, var(--auto) 45%, var(--border));
+    background: color-mix(in srgb, var(--auto-soft) 55%, var(--surface));
+  }
+  .btn-primary {
+    @apply inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-accent px-5 text-sm font-semibold text-white transition hover:brightness-110 active:brightness-95 disabled:cursor-not-allowed disabled:opacity-40;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 2px rgba(10, 20, 40, 0.2);
+  }
+  .btn-secondary {
+    @apply inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-line bg-surface px-4 text-sm font-medium text-foreground transition hover:border-line-strong hover:bg-surface-muted;
+  }
+  .card {
+    @apply rounded-2xl border border-line bg-surface shadow-card;
+  }
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-muted;
+  }
 }
